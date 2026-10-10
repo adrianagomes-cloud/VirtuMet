@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "904792398726",
+    "project_id": "virtumet-d4eff",
+    "storage_bucket": "virtumet-d4eff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:904792398726:android:0d4db2d7f52845c0656a07",
+        "android_client_info": {
+          "package_name": "com.example.flutter_virtumet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3NFz7WoWXNHvR-9c-sXkyiVQhkXAuYcI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
