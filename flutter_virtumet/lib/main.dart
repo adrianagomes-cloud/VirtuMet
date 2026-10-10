@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'landing_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,36 +19,16 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VirtuMet',
+      title: 'VirtuMet UNIMET',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        fontFamily: 'Arial',
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFFF5500),
+        ),
         useMaterial3: true,
       ),
-      // AQUÍ CAMBIAS EL "home" POR TU PROPIA PANTALLA PRINCIPAL
-      home: const HomeScreen(), 
-    );
-  }
-}
-
-
-
-// Ejemplo de tu propia pantalla principal (puedes moverla a su propio archivo en la carpeta lib/)
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('VirtuMet'),
-      ),
-      body: const Center(
-        child: Text(
-          '¡Bienvenido a VirtuMet!',
-          style: TextStyle(fontSize: 22),
-        ),
-      ),
+      home: const LandingPage(), 
     );
   }
 }
