@@ -69,7 +69,7 @@ class _Navbar extends StatelessWidget {
           // Logo Oficial VirtuMet en PNG
           Image.asset(
             'lib/assets/Logo.png',
-            height: 45,
+            height: 70,
             fit: BoxFit.contain,
           ),
           const Spacer(),

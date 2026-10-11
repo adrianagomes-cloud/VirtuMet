@@ -23,7 +23,6 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           
           // LADO IZQUIERDO: BANNER VISUAL (PANTALLAS GRANDES)
-          
           if (isDesktop)
             Expanded(
               flex: 1,
@@ -141,23 +140,17 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Header con Isotipo y Tag UNIMET
+                          // Header con Logo Oficial y Tag UNIMET
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFF5500),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.bolt,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
+                                  //lib/assets/logo2.png
+                                  Image.asset(
+                                    'lib/assets/logo2.png',
+                                    height: 60,
+                                    fit: BoxFit.contain,
                                   ),
                                   const SizedBox(width: 12),
                                   Column(
