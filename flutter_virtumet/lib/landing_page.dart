@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
@@ -80,9 +81,14 @@ class _Navbar extends StatelessWidget {
 
           const SizedBox(width: 30),
 
-          // Botón Ingresar
+          // Botón Ingresar (Conectado a LoginPage)
           OutlinedButton(
-            onPressed: () {}, 
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            }, 
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: LandingPage.blueDark),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -180,8 +186,14 @@ class _HeroSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Botón EMPEZAR AHORA > (Conectado a LoginPage)
               ElevatedButton(
-                onPressed: () {}, 
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                }, 
                 style: ElevatedButton.styleFrom(
                   backgroundColor: LandingPage.orangePrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
@@ -451,8 +463,14 @@ class _CtaBannerSection extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Botón REGÍSTRATE AHORA > (Conectado a LoginPage)
                 ElevatedButton(
-                  onPressed: () {}, 
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                    );
+                  }, 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: LandingPage.orangePrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
