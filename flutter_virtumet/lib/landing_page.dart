@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
+import 'registration_page.dart';
 
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
@@ -463,12 +464,12 @@ class _CtaBannerSection extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Botón REGÍSTRATE AHORA > (Conectado a LoginPage)
+                // Botón REGÍSTRATE AHORA > (Conectado a selección de rol)
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                      MaterialPageRoute(builder: (context) => const RegistrationPage()),
                     );
                   }, 
                   style: ElevatedButton.styleFrom(

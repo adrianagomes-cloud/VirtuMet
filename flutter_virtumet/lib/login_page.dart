@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'registration_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -361,20 +362,33 @@ class _LoginPageState extends State<LoginPage> {
 
                           // Enlace general a Registro
                           Center(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Text(
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              children: [
+                                const Text(
                                   '¿No tienes cuenta? ',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
-                                Text(
-                                  'Regístrate aquí',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFFF5500),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegistrationPage(),
+                                      ),
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    foregroundColor: const Color(0xFFFF5500),
+                                    textStyle: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
+                                  child: const Text('Regístrate aquí'),
                                 ),
                               ],
                             ),
