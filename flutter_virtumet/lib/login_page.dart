@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'registration_page.dart';
+import 'landing_page.dart'; // Importación de la página principal
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,12 +16,77 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // LÓGICA DE INICIO DE SESIÓN CON FIREBASE
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Bienvenido a VirtuMet!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Redirigir al usuario al entrar exitosamente
+      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+
+    } on FirebaseAuthException catch (e) {
+      String mensaje = 'Error al iniciar sesión.';
+      if (e.code == 'user-not-found') {
+        mensaje = 'No existe una cuenta con este correo.';
+      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        mensaje = 'Correo o contraseña incorrectos.';
+      } else if (e.code == 'invalid-email') {
+        mensaje = 'El formato del correo no es válido.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error inesperado: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // NAVEGACIÓN DE REGRESO A LANDING PAGE
+  void _navigateToLanding() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LandingPage()),
+      );
+    }
   }
 
   @override
@@ -30,7 +97,6 @@ class _LoginPageState extends State<LoginPage> {
       body: SafeArea(
         child: Row(
           children: [
-            // LADO IZQUIERDO: BANNER VISUAL (PANTALLAS GRANDES)
             if (isDesktop)
               Expanded(
                 flex: 1,
@@ -119,7 +185,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-            // LADO DERECHO: FORMULARIO DE LOGIN (TARJETA BLANCA)
             Expanded(
               flex: 1,
               child: Container(
@@ -146,23 +211,50 @@ class _LoginPageState extends State<LoginPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header con Logo Oficial y Tag UNIMET
+                            // BOTÓN DE FLECHA PARA VOLVER A LANDING PAGE
+                            Row(
+                              children: [
+                                InkWell(
+                                  onTap: _navigateToLanding,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0F3F8),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_back_rounded,
+                                      color: Color(0xFF0F2C59),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Volver al inicio',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F2C59),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Image.asset(
-                                      'lib/assets/Logo.png',
-                                      height: 50,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (context, error, stackTrace) => const Icon(
-                                        Icons.sports_soccer,
-                                        color: Color(0xFFFF5500),
-                                        size: 32,
-                                      ),
-                                    ),
-                                  ],
+                                Image.asset(
+                                  'lib/assets/Logo.png',
+                                  height: 50,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(
+                                    Icons.sports_soccer,
+                                    color: Color(0xFFFF5500),
+                                    size: 32,
+                                  ),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -183,7 +275,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 28),
 
-                            // Título Principal
                             const Text(
                               'BIENVENIDO A VIRTUMET',
                               style: TextStyle(
@@ -203,7 +294,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 28),
 
-                            // Campo: Correo
                             const Text(
                               'CORREO INSTITUCIONAL *',
                               style: TextStyle(
@@ -241,7 +331,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 18),
 
-                            // Campo: Contraseña
                             const Text(
                               'CONTRASEÑA *',
                               style: TextStyle(
@@ -290,7 +379,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Opciones: Recordarme / Olvidaste contraseña
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -331,7 +419,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 28),
 
-                            // Botón Iniciar Sesión
                             SizedBox(
                               width: double.infinity,
                               height: 52,
@@ -344,35 +431,35 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   elevation: 0,
                                 ),
-                                onPressed: () {
-                                  if (_formKey.currentState!.validate()) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Iniciando sesión...'),
+                                onPressed: _isLoading ? null : _handleLogin,
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: const [
+                                          Text(
+                                            'INICIAR SESIÓN',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Icon(Icons.arrow_forward, size: 18),
+                                        ],
                                       ),
-                                    );
-                                  }
-                                },
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Text(
-                                      'INICIAR SESIÓN',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Icon(Icons.arrow_forward, size: 18),
-                                  ],
-                                ),
                               ),
                             ),
                             const SizedBox(height: 24),
 
-                            // Enlace a Selección de Roles
                             Center(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
