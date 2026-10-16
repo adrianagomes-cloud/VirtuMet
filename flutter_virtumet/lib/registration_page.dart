@@ -14,6 +14,7 @@ class RegistrationPage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
+            // Barra superior limpia (Uso de Logo.png)
             const _RegistrationNavbar(),
             Expanded(
               child: SingleChildScrollView(
@@ -117,7 +118,7 @@ class RegistrationPage extends StatelessWidget {
                                 ],
                                 icon: Icons.shield_outlined,
                                 imageUrl:
-                                    'https://images.unsplash.com/photo-1579952363873-27f3bede9f55?auto=format&fit=crop&w=900&q=80',
+                                    'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=900&q=80',
                                 buttonLabel: 'CONTINUAR COMO ENTRENADOR',
                                 onPressed: () => _openForm(context, 'Entrenador'),
                               ),
@@ -166,68 +167,51 @@ class RegistrationPage extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// NAVBAR SUPERIOR (SELECCIÓN DE ROLES)
+// =============================================================================
 class _RegistrationNavbar extends StatelessWidget {
   const _RegistrationNavbar();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 32),
       decoration: const BoxDecoration(
-        color: Color(0xFFF9FAFD),
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFDCE2EC))),
       ),
       child: Row(
         children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: const BoxDecoration(
-              color: RegistrationPage._navy,
-              shape: BoxShape.circle,
+          Image.asset(
+            'lib/assets/Logo.png',
+            height: 60,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: RegistrationPage._navy,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.bolt, color: Colors.white, size: 14),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'VirtuMet',
+                  style: TextStyle(
+                    color: RegistrationPage._navy,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-            child: const Icon(Icons.bolt, color: Colors.white, size: 12),
           ),
-          const SizedBox(width: 7),
-          const Text(
-            'VirtuMet',
-            style: TextStyle(
-              color: RegistrationPage._navy,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 18),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
-            color: RegistrationPage._orange,
-            child: const Text(
-              'Catálogo',
-              style: TextStyle(color: Colors.white, fontSize: 9),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const _NavItem('Mis Inscripciones'),
-          const _NavItem('Anuncios'),
-          const _NavItem('Comunidad'),
         ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final String label;
-  const _NavItem(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 9),
-      child: Text(
-        label,
-        style: const TextStyle(color: Color(0xFF637087), fontSize: 8),
       ),
     );
   }
@@ -261,14 +245,14 @@ class _RoleCard extends StatelessWidget {
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: Color(0xFFE1E6EF)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 175,
+            height: 180,
             width: double.infinity,
             child: Stack(
               fit: StackFit.expand,
@@ -276,7 +260,7 @@ class _RoleCard extends StatelessWidget {
                 Image.network(
                   imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     color: const Color(0xFFB9C3D2),
                     child: const Icon(Icons.sports, color: Colors.white, size: 54),
                   ),
@@ -286,24 +270,24 @@ class _RoleCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withOpacity(.65)],
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: .65)],
                     ),
                   ),
                 ),
                 Positioned(
-                  top: 10,
-                  left: 10,
+                  top: 12,
+                  left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: RegistrationPage._orange,
-                      borderRadius: BorderRadius.circular(9),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       badge,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -313,41 +297,41 @@ class _RoleCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 17),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(7),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF3F6FB),
-                        borderRadius: BorderRadius.circular(7),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(icon, color: RegistrationPage._navy, size: 16),
+                      child: Icon(icon, color: RegistrationPage._navy, size: 18),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Text(
                       title,
                       style: const TextStyle(
                         color: RegistrationPage._navy,
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 13),
+                const SizedBox(height: 14),
                 Text(
                   description,
                   style: const TextStyle(
                     color: Color(0xFF5D687A),
-                    fontSize: 10,
+                    fontSize: 12,
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 13),
+                const SizedBox(height: 16),
                 ...benefits.map(
                   (benefit) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -356,15 +340,15 @@ class _RoleCard extends StatelessWidget {
                         const Icon(
                           Icons.check_circle_outline,
                           color: RegistrationPage._orange,
-                          size: 13,
+                          size: 15,
                         ),
-                        const SizedBox(width: 7),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             benefit,
                             style: const TextStyle(
                               color: Color(0xFF4E5A6D),
-                              fontSize: 9,
+                              fontSize: 11,
                             ),
                           ),
                         ),
@@ -372,22 +356,22 @@ class _RoleCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  height: 38,
+                  height: 42,
                   child: ElevatedButton.icon(
                     onPressed: onPressed,
-                    icon: const Icon(Icons.arrow_forward, size: 14),
+                    icon: const Icon(Icons.arrow_forward, size: 16),
                     label: Text(
                       buttonLabel,
-                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: RegistrationPage._navy,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
@@ -415,11 +399,11 @@ class _RegistrationFooter extends StatelessWidget {
           children: const [
             Text(
               '●  UNIMET Athletic Division',
-              style: TextStyle(color: Color(0xFF667995), fontSize: 8),
+              style: TextStyle(color: Color(0xFF667995), fontSize: 10),
             ),
             Text(
               '◉ IDENTIDAD VALIDADA    ⚒ +1,200 MIEMBROS    ♙ DEPORTE DE ÉLITE',
-              style: TextStyle(color: Color(0xFF9BA6B7), fontSize: 7),
+              style: TextStyle(color: Color(0xFF9BA6B7), fontSize: 9),
             ),
           ],
         ),
@@ -428,6 +412,9 @@ class _RegistrationFooter extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// FORMULARIO DE REGISTRO (CON Logo.png EN LA IZQUIERDA Y BOTÓN ATRÁS ABAJO)
+// =============================================================================
 class RoleRegistrationForm extends StatefulWidget {
   final String role;
   const RoleRegistrationForm({super.key, required this.role});
@@ -438,115 +425,595 @@ class RoleRegistrationForm extends StatefulWidget {
 
 class _RoleRegistrationFormState extends State<RoleRegistrationForm> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+
+  // Controladores Estudiante
+  final _nombreController = TextEditingController();
+  final _apellidoController = TextEditingController();
+  final _edadController = TextEditingController();
+  final _pesoController = TextEditingController();
+  final _carnetController = TextEditingController();
+  final _carreraController = TextEditingController();
+  final _fechaNacimientoController = TextEditingController();
+
+  // Controladores Entrenador
+  final _nombreApellidoCoachController = TextEditingController();
+  final _disciplinaExperienciaController = TextEditingController();
+  final _certificacionController = TextEditingController();
+
+  // Controladores Generales
+  final _correoController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+
+  bool get _isCoach => widget.role.toLowerCase().contains('entrenador');
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
+    _nombreController.dispose();
+    _apellidoController.dispose();
+    _edadController.dispose();
+    _pesoController.dispose();
+    _carnetController.dispose();
+    _carreraController.dispose();
+    _fechaNacimientoController.dispose();
+    _nombreApellidoCoachController.dispose();
+    _disciplinaExperienciaController.dispose();
+    _certificacionController.dispose();
+    _correoController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width > 900;
+
     return Scaffold(
-      backgroundColor: RegistrationPage._background,
-      appBar: AppBar(
-        title: Text('Registro de ${widget.role}'),
-        backgroundColor: RegistrationPage._navy,
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Card(
-              elevation: 0,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
+      backgroundColor: const Color(0xFFF4F6F9),
+      body: SafeArea(
+        child: Row(
+          children: [
+            // =================================================================
+            // LADO IZQUIERDO: BANNER VISUAL OSCURO
+            // =================================================================
+            if (isDesktop)
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 60),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A192F),
+                    image: DecorationImage(
+                      image: NetworkImage(
+                        _isCoach
+                            ? 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1200&q=80'
+                            : 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=1200&q=80',
+                      ),
+                      fit: BoxFit.cover,
+                      colorFilter: const ColorFilter.mode(
+                        Color(0xF50A192F),
+                        BlendMode.darken,
+                      ),
+                    ),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Crea tu cuenta como ${widget.role.toLowerCase()}',
-                        style: const TextStyle(
-                          color: RegistrationPage._navy,
-                          fontSize: 21,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF5500),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Usa tu correo institucional para comenzar.',
-                        style: TextStyle(color: Color(0xFF667085)),
-                      ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre completo',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty ? 'Ingresa tu nombre' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Correo institucional',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                        validator: (value) => value == null || !value.contains('@')
-                            ? 'Ingresa un correo válido'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                          prefixIcon: Icon(Icons.lock_outline),
-                        ),
-                        validator: (value) => value == null || value.length < 6
-                            ? 'Usa al menos 6 caracteres'
-                            : null,
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Formulario listo para conectar con Firebase Auth.'),
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: RegistrationPage._orange,
-                            foregroundColor: Colors.white,
+                        child: Text(
+                          _isCoach ? 'COMUNIDAD UNIMET' : 'ÚNETE A LA ÉLITE',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
                           ),
-                          child: const Text('CREAR CUENTA'),
                         ),
                       ),
+                      const Spacer(),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.w900,
+                            height: 1.15,
+                            fontFamily: 'Arial',
+                            color: Colors.white,
+                          ),
+                          children: _isCoach
+                              ? const [
+                                  TextSpan(text: 'Dirige el talento.\n'),
+                                  TextSpan(
+                                    text: 'Eleva el rendimiento.',
+                                    style: TextStyle(color: Color(0xFFFF5500)),
+                                  ),
+                                ]
+                              : const [
+                                  TextSpan(text: 'TU CAMINO AL\n'),
+                                  TextSpan(
+                                    text: 'ÉXITO DEPORTIVO\n',
+                                    style: TextStyle(color: Color(0xFFFF5500)),
+                                  ),
+                                  TextSpan(text: 'COMIENZA AQUÍ.'),
+                                ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: 460,
+                        child: Text(
+                          _isCoach
+                              ? 'Gestiona tus atletas, planifica entrenamientos y lleva los equipos de la Universidad Metropolitana a la cima deportiva.'
+                              : 'Regístrate para acceder al catálogo completo de disciplinas, torneos inter-facultades y seguimiento de tus créditos deportivos.',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      if (_isCoach) ...[
+                        _buildLeftFeature('GESTIÓN DE PLANTILLAS Y ASISTENCIA'),
+                        const SizedBox(height: 16),
+                        _buildLeftFeature('PLANIFICACIÓN DE ENTRENAMIENTOS'),
+                        const SizedBox(height: 16),
+                        _buildLeftFeature('REPORTES DE DESEMPEÑO INSTITUCIONAL'),
+                      ] else ...[
+                        _buildLeftFeature('ACCESO A INSTALACIONES DE PRIMER NIVEL'),
+                        const SizedBox(height: 16),
+                        _buildLeftFeature('INSCRIPCIÓN SIMPLIFICADA A DISCIPLINAS'),
+                        const SizedBox(height: 16),
+                        _buildLeftFeature('GESTIÓN DE FICHA MÉDICA DIGITAL'),
+                      ],
+                      const Spacer(),
                     ],
                   ),
                 ),
               ),
+
+            // =================================================================
+            // LADO DERECHO: FORMULARIO CON Logo.png EN LA IZQUIERDA
+            // =================================================================
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 580),
+                    padding: const EdgeInsets.all(36),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // LOGO EN LA IZQUIERDA (Logo.png)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Image.asset(
+                              'lib/assets/Logo.png',
+                              height: 50,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // BOTÓN DE VOLVER ATRÁS (DEBAJO DEL LOGO)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            alignment: Alignment.centerLeft,
+                            icon: const Icon(Icons.arrow_back, color: Color(0xFF0F2C59)),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Título y Subtítulo
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _isCoach
+                                    ? 'Registro — Entrenador'
+                                    : 'REGISTRO DE ESTUDIANTE',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF0F2C59),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              if (_isCoach)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF5500)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    'Revisión 48 h',
+                                    style: TextStyle(
+                                      color: Color(0xFFFF5500),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _isCoach
+                                ? 'Solicitud sujeta a validación institucional.'
+                                : 'Completa tus datos para crear tu perfil de atleta universitario.',
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // CAMPOS SEGÚN EL ROL
+                          if (_isCoach) ...[
+                            // Campos de Entrenador
+                            _buildFormField(
+                              label: 'NOMBRE Y APELLIDO *',
+                              hint: 'Carlos Rivas',
+                              controller: _nombreApellidoCoachController,
+                              icon: Icons.person_outline,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CORREO INSTITUCIONAL *',
+                              hint: 'carlos.rivas@unimet.edu.ve',
+                              controller: _correoController,
+                              keyboardType: TextInputType.emailAddress,
+                              icon: Icons.email_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'DISCIPLINA Y EXPERIENCIA *',
+                              hint: 'Fútbol sala - 8 años',
+                              controller: _disciplinaExperienciaController,
+                              icon: Icons.sports_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CERTIFICACIÓN *',
+                              hint: 'Licencia CONMEBOL B - PDF',
+                              controller: _certificacionController,
+                              icon: Icons.card_membership_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CONTRASEÑA *',
+                              hint: '••••••••',
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              icon: Icons.lock_outline,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: Colors.grey,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  setState(() => _obscurePassword = !_obscurePassword);
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Alerta de revisión 48 horas
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6F8FA),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.info_outline,
+                                      size: 18, color: Color(0xFF0F2C59)),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'La Coordinación de Deportes verificará tus credenciales en 48 horas hábiles.',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else ...[
+                            // Campos de Estudiante
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildFormField(
+                                    label: 'NOMBRE',
+                                    hint: 'Ej. Juan',
+                                    controller: _nombreController,
+                                    icon: Icons.person_outline,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: _buildFormField(
+                                    label: 'APELLIDO',
+                                    hint: 'Ej. Pérez',
+                                    controller: _apellidoController,
+                                    icon: Icons.person_outline,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildFormField(
+                                    label: 'EDAD *',
+                                    hint: '20',
+                                    controller: _edadController,
+                                    keyboardType: TextInputType.number,
+                                    icon: Icons.calendar_today_outlined,
+                                    isHighlighted: true,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: _buildFormField(
+                                    label: 'PESO (KG) *',
+                                    hint: '72.5',
+                                    controller: _pesoController,
+                                    keyboardType: TextInputType.number,
+                                    icon: Icons.fitness_center_outlined,
+                                    isHighlighted: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'NÚMERO DE CARNET',
+                              hint: '20241100XX',
+                              controller: _carnetController,
+                              icon: Icons.credit_card_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CARRERA UNIVERSITARIA',
+                              hint: 'Ej. Ingeniería de Sistemas',
+                              controller: _carreraController,
+                              icon: Icons.school_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'FECHA DE NACIMIENTO',
+                              hint: 'dd/mm/aaaa',
+                              controller: _fechaNacimientoController,
+                              icon: Icons.calendar_month_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CORREO INSTITUCIONAL *',
+                              hint: 'usuario@correo.unimet.ve',
+                              controller: _correoController,
+                              keyboardType: TextInputType.emailAddress,
+                              icon: Icons.email_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              label: 'CONTRASEÑA *',
+                              hint: '••••••••',
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              icon: Icons.lock_outline,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: Colors.grey,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  setState(() => _obscurePassword = !_obscurePassword);
+                                },
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 28),
+
+                          // Botón Crear Cuenta
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF5500),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 0,
+                              ),
+                              onPressed: () {
+                                if (_formKey.currentState!.validate()) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _isCoach
+                                            ? 'Solicitud de entrenador enviada a revisión.'
+                                            : 'Formulario de estudiante enviado con éxito.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Text(
+                                    'CREAR CUENTA',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward, size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeftFeature(String text) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF5500).withValues(alpha: 0.25),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check,
+            color: Color(0xFFFF5500),
+            size: 14,
           ),
         ),
+        const SizedBox(width: 12),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+    bool isHighlighted = false,
+    Widget? suffixIcon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F2C59),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 13),
+          decoration: _inputDecoration(
+            hint: hint,
+            icon: icon,
+            isHighlighted: isHighlighted,
+            suffixIcon: suffixIcon,
+          ),
+          validator: (value) {
+            if (label.contains('*') && (value == null || value.trim().isEmpty)) {
+              return 'Campo requerido';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData icon,
+    bool isHighlighted = false,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+      filled: true,
+      fillColor: isHighlighted ? const Color(0xFFFFF8F5) : const Color(0xFFF6F8FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      prefixIcon: Icon(icon, color: Colors.grey.shade500, size: 18),
+      suffixIcon: suffixIcon,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: isHighlighted
+            ? const BorderSide(color: Color(0xFFFF5500), width: 1.2)
+            : BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: isHighlighted
+            ? const BorderSide(color: Color(0xFFFF5500), width: 1.2)
+            : BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFFF5500), width: 1.5),
       ),
     );
   }
