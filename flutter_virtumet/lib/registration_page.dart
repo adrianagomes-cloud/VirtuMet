@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
+import 'student_dashboard_page.dart';
+import 'teacher_dashboard_page.dart';
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
@@ -50,7 +52,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
     super.dispose();
   }
 
-  // MÉTODO PRINCIPAL DE REGISTRO EN FIREBASE
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,7 +105,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
         });
       }
 
-      // 3. Guardar en la colección 'users' de Firestore
+      // 3. Guardar en Firestore
       await FirebaseFirestore.instance.collection('users').doc(uid).set(userData);
 
       if (!mounted) return;
@@ -117,11 +118,20 @@ class _RegistrationPageState extends State<RegistrationPage> {
         ),
       );
 
-      // Redirigir al inicio de sesión
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+      // 4. Redirigir al panel correspondiente según el rol
+      if (_selectedRole == 'Estudiante') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const StudentDashboardPage()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const TeacherDashboardPage()),
+          (route) => false,
+        );
+      }
 
     } on FirebaseAuthException catch (e) {
       String mensaje = 'Error al registrar el usuario.';
@@ -159,7 +169,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
       body: SafeArea(
         child: Row(
           children: [
-            // PANEL IZQUIERDO DECORATIVO (Solo visible en pantallas medianas / grandes)
             if (isDesktop)
               Expanded(
                 flex: 1,
@@ -244,7 +253,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 ),
               ),
 
-            // PANEL DERECHO - FORMULARIO DE REGISTRO
             Expanded(
               flex: 1,
               child: Container(
@@ -271,7 +279,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Selector de Rol
                             Row(
                               children: [
                                 Expanded(
@@ -307,7 +314,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Título
                             Text(
                               _selectedRole == 'Estudiante' ? 'REGISTRO DE ESTUDIANTE' : 'REGISTRO DE ENTRENADOR',
                               style: const TextStyle(
@@ -326,7 +332,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // CAMPOS - FORMULARIO ESTUDIANTE
                             if (_selectedRole == 'Estudiante') ...[
                               Row(
                                 children: [
@@ -397,7 +402,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                 icon: Icons.event_outlined,
                               ),
                             ] else ...[
-                              // CAMPOS - FORMULARIO ENTRENADOR
                               _buildTextField(
                                 label: 'NOMBRE Y APELLIDO *',
                                 hint: 'Carlos Rivas',
@@ -424,7 +428,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ],
 
                             const SizedBox(height: 16),
-                            // CAMPOS COMUNES DE AUTENTICACIÓN
                             _buildTextField(
                               label: 'CORREO INSTITUCIONAL *',
                               hint: 'juan.perez@correo.unimet.ve',
@@ -462,7 +465,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                             const SizedBox(height: 28),
 
-                            // Botón de Envío
                             SizedBox(
                               width: double.infinity,
                               height: 52,
@@ -504,7 +506,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Enlace al Login
                             Center(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -548,7 +549,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
     );
   }
 
-  // WIDGET AUXILIAR PARA CONSTRUIR CAMPOS DE TEXTO
   Widget _buildTextField({
     required String label,
     required String hint,

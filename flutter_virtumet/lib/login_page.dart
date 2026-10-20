@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_page.dart';
-import 'landing_page.dart'; // Importación de la página principal
+import 'landing_page.dart';
+import 'student_dashboard_page.dart';
+import 'teacher_dashboard_page.dart';
+import 'admin_dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +22,9 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
+  // CORREO ADMIN PRIVADO
+  static const String adminEmail = 'admin@correo.unimet.ve';
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -25,29 +32,81 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // LÓGICA DE INICIO DE SESIÓN CON FIREBASE
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
+    final String inputEmail = _emailController.text.trim();
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
+      // 1. Iniciar sesión en Firebase Auth
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+        email: inputEmail,
         password: _passwordController.text.trim(),
       );
 
+      final String uid = userCredential.user!.uid;
+
+      // 2. Si el correo coincide con el admin privado, entra directo al Panel Admin
+      if (inputEmail == adminEmail) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Bienvenido, Administrador!'),
+            backgroundColor: Color(0xFF0F2C59),
+          ),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
+          (route) => false,
+        );
+        return;
+      }
+
+      // 3. Para otros usuarios, consultar rol en Firestore
+      final DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Bienvenido a VirtuMet!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (userDoc.exists) {
+        final Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+        final String rol = data['rol'] ?? 'Estudiante';
 
-      // Redirigir al usuario al entrar exitosamente
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+        // Redirección según rol
+        if (rol == 'Admin') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
+            (route) => false,
+          );
+        } else if (rol == 'Estudiante') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const StudentDashboardPage()),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const TeacherDashboardPage()),
+            (route) => false,
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontró perfil asignado para este usuario.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
     } on FirebaseAuthException catch (e) {
       String mensaje = 'Error al iniciar sesión.';
@@ -77,7 +136,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // NAVEGACIÓN DE REGRESO A LANDING PAGE
   void _navigateToLanding() {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
@@ -211,7 +269,6 @@ class _LoginPageState extends State<LoginPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // BOTÓN DE FLECHA PARA VOLVER A LANDING PAGE
                             Row(
                               children: [
                                 InkWell(
@@ -219,8 +276,8 @@ class _LoginPageState extends State<LoginPage> {
                                   borderRadius: BorderRadius.circular(20),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF0F3F8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF0F3F8),
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(

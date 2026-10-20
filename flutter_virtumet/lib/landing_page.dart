@@ -187,12 +187,12 @@ class _HeroSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Botón EMPEZAR AHORA > (Conectado a LoginPage)
+              // Botón EMPEZAR AHORA > (Redirige al Registro / Selección de Rol)
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    MaterialPageRoute(builder: (context) => const RegistrationPage()),
                   );
                 }, 
                 style: ElevatedButton.styleFrom(
@@ -464,7 +464,7 @@ class _CtaBannerSection extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Botón REGÍSTRATE AHORA > (Conectado a selección de rol)
+                // Botón REGÍSTRATE AHORA >
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
