@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'landing_page.dart';
+import 'landing_page.dart'; // Importación de la página principal
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,7 +9,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  
   runApp(const MyApp());
 }
 
@@ -19,16 +19,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VirtuMet UNIMET',
+      title: 'VirtuMet',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Arial',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFF5500),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF5500)),
         useMaterial3: true,
       ),
-      home: const LandingPage(), 
+      home: const LandingPage(), // Iniciar con la Landing Page
     );
   }
 }

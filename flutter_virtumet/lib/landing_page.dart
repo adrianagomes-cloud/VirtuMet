@@ -59,7 +59,7 @@ class _Navbar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -187,12 +187,12 @@ class _HeroSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Botón EMPEZAR AHORA > (Conectado a LoginPage)
+              // Botón EMPEZAR AHORA > (Redirige al Registro / Selección de Rol)
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    MaterialPageRoute(builder: (context) => const RegistrationPage()),
                   );
                 }, 
                 style: ElevatedButton.styleFrom(
@@ -404,7 +404,7 @@ class _FeatureCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5)),
         ],
       ),
       child: Column(
@@ -464,7 +464,7 @@ class _CtaBannerSection extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Botón REGÍSTRATE AHORA > (Conectado a selección de rol)
+                // Botón REGÍSTRATE AHORA >
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
