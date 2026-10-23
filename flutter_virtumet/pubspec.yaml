@@ -15,6 +15,8 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_auth: ^6.7.0
   cloud_firestore: ^6.10.0
+  firebase_storage: ^13.6.0 # Opcional si subes a Firebase Storage
+  image_picker: ^1.1.2     # Para seleccionar archivos desde la computadora / dispositivo
 
 dev_dependencies:
   flutter_test:

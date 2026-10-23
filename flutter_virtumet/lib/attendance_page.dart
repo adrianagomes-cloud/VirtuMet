@@ -210,115 +210,142 @@ class _AttendancePageState extends State<AttendancePage> {
 
   @override
   Widget build(BuildContext context) {
+    final String? userId = FirebaseAuth.instance.currentUser?.uid;
+
     final filteredStudents = _students.where((student) {
       final query = _searchQuery.toLowerCase();
       return student.nombre.toLowerCase().contains(query) ||
           student.carnet.contains(query);
     }).toList();
 
-    return Scaffold(
-      backgroundColor: bgLight,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopNavbar(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back, size: 16, color: blueDark),
-                    label: const Text(
-                      'VOLVER AL DASHBOARD',
-                      style: TextStyle(
-                        color: blueDark,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'GESTIÓN DE ASISTENCIA',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: blueDark,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Registra la participación de hoy en ${widget.deporteNombre} - Sección A',
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                  const SizedBox(height: 24),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: userId != null
+          ? FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .snapshots()
+          : null,
+      builder: (context, userSnapshot) {
+        final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
 
-                  Row(
+        final String rawNombre = userData?['nombreApellido'] ??
+            userData?['nombre'] ??
+            'Entrenador';
+        final String nombreUsuario =
+            rawNombre.trim().isEmpty ? 'Entrenador' : rawNombre.trim();
+
+        return Scaffold(
+          backgroundColor: bgLight,
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildTopNavbar(nombreUsuario),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _kpiMetricCard(
-                            'PRESENTES', countPresentes.toString(), Colors.green),
+                      TextButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back,
+                            size: 16, color: blueDark),
+                        label: const Text(
+                          'VOLVER AL DASHBOARD',
+                          style: TextStyle(
+                            color: blueDark,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _kpiMetricCard(
-                            'AUSENTES', countAusentes.toString(), Colors.red),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'GESTIÓN DE ASISTENCIA',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: blueDark,
+                        ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _kpiMetricCard(
-                            'RETRASOS', countRetrasos.toString(), Colors.amber.shade800),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Registra la participación de hoy en ${widget.deporteNombre} - Sección A',
+                        style: const TextStyle(
+                            color: Colors.grey, fontSize: 14),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _kpiMetricCard(
-                            'PENDIENTES', countPendientes.toString(), blueDark),
+                      const SizedBox(height: 24),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _kpiMetricCard('PRESENTES',
+                                countPresentes.toString(), Colors.green),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _kpiMetricCard('AUSENTES',
+                                countAusentes.toString(), Colors.red),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _kpiMetricCard(
+                                'RETRASOS',
+                                countRetrasos.toString(),
+                                Colors.amber.shade800),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _kpiMetricCard('PENDIENTES',
+                                countPendientes.toString(), blueDark),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final bool isDesktop = constraints.maxWidth > 900;
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: isDesktop ? 3 : 1,
+                                child: _buildStudentTableCard(filteredStudents),
+                              ),
+                              if (isDesktop) const SizedBox(width: 24),
+                              if (isDesktop)
+                                Expanded(
+                                  flex: 1,
+                                  child: Column(
+                                    children: [
+                                      _buildSessionDetailsCard(),
+                                      const SizedBox(height: 20),
+                                      _buildRecentActivityCard(),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                ),
 
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final bool isDesktop = constraints.maxWidth > 900;
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: isDesktop ? 3 : 1,
-                            child: _buildStudentTableCard(filteredStudents),
-                          ),
-                          if (isDesktop) const SizedBox(width: 24),
-                          if (isDesktop)
-                            Expanded(
-                              flex: 1,
-                              child: Column(
-                                children: [
-                                  _buildSessionDetailsCard(),
-                                  const SizedBox(height: 20),
-                                  _buildRecentActivityCard(),
-                                ],
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
+                _buildFooter(),
+              ],
             ),
-
-            // PIE DE PÁGINA CENTRADO
-            _buildFooter(),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTopNavbar() {
+  // ===========================================================================
+  // BARRA SUPERIOR (NAVBAR) - LOGO AUMENTADO DE TAMAÑO (HEIGHT: 58)
+  // ===========================================================================
+  Widget _buildTopNavbar(String nombre) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
       color: Colors.white,
@@ -326,7 +353,7 @@ class _AttendancePageState extends State<AttendancePage> {
         children: [
           Image.asset(
             'lib/assets/Logo.png',
-            height: 38,
+            height: 58, // Aumentado de 38 a 58
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) => Row(
               children: [
@@ -337,13 +364,13 @@ class _AttendancePageState extends State<AttendancePage> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.fitness_center,
-                      color: Colors.white, size: 18),
+                      color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 8),
                 const Text(
                   'VirtuMet',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: blueDark,
                   ),
@@ -352,8 +379,8 @@ class _AttendancePageState extends State<AttendancePage> {
             ),
           ),
           const SizedBox(width: 40),
-          _navLink('Catálogo'),
-          _navLink('Mis Inscripciones'),
+          _navLink('Mis Disciplinas'),
+          _navLink('Nómina y Asistencia'),
           _navLink('Anuncios'),
           _navLink('Comunidad'),
           const Spacer(),
@@ -363,9 +390,9 @@ class _AttendancePageState extends State<AttendancePage> {
             child: Icon(Icons.person, size: 18, color: blueDark),
           ),
           const SizedBox(width: 8),
-          const Text(
-            'Entrenador',
-            style: TextStyle(
+          Text(
+            nombre,
+            style: const TextStyle(
                 fontWeight: FontWeight.bold, color: blueDark, fontSize: 13),
           ),
         ],
@@ -814,10 +841,6 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  // ===========================================================================
-  // PIE DE PÁGINA (FOOTER CON COLUMNA ASISTENCIA CENTRADA)
-  // ===========================================================================
-
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
@@ -827,7 +850,6 @@ class _AttendancePageState extends State<AttendancePage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. LADO IZQUIERDO: Logo y Descripción
               Expanded(
                 flex: 3,
                 child: Column(
@@ -835,7 +857,7 @@ class _AttendancePageState extends State<AttendancePage> {
                   children: [
                     Image.asset(
                       'lib/assets/Logo.png',
-                      height: 38,
+                      height: 45, // Aumentado para mejor visibilidad en el footer
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const Text(
                         'VIRTUMET',
@@ -855,10 +877,8 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
               ),
 
-              // ESPACIADOR IZQUIERDO
               const Spacer(flex: 1),
 
-              // 2. CENTRO: Columna de Asistencia
               Expanded(
                 flex: 3,
                 child: Column(
@@ -886,7 +906,6 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
               ),
 
-              // ESPACIADOR DERECHO (Garantiza el centrado exacto)
               const Spacer(flex: 1),
             ],
           ),

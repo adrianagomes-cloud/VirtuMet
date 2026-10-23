@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'attendance_page.dart';
+import 'profile_edit_page.dart';
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -13,7 +14,7 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
-  String _searchQuery = ''; // Estado para el filtro del buscador de sesiones
+  String _searchQuery = '';
 
   // Colores corporativos de VirtuMet
   static const Color orangePrimary = Color(0xFFFF5500);
@@ -31,6 +32,28 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  IconData _getSportIcon(String sportName) {
+    final name = sportName.toLowerCase();
+    if (name.contains('baloncesto') || name.contains('basquet')) {
+      return Icons.sports_basketball;
+    } else if (name.contains('fútbol') || name.contains('futbol')) {
+      return Icons.sports_soccer;
+    } else if (name.contains('voleibol') || name.contains('voley')) {
+      return Icons.sports_volleyball;
+    } else if (name.contains('tenis')) {
+      return Icons.sports_tennis;
+    } else if (name.contains('natación') || name.contains('natacion')) {
+      return Icons.pool;
+    } else if (name.contains('entrenamiento') ||
+        name.contains('gimnasio') ||
+        name.contains('funcional')) {
+      return Icons.fitness_center;
+    } else if (name.contains('atletismo') || name.contains('running')) {
+      return Icons.directions_run;
+    }
+    return Icons.sports;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
@@ -42,155 +65,162 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     final String fechaHoy =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-    return Scaffold(
-      backgroundColor: bgLight,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopNavbar(context),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .snapshots(),
+      builder: (context, userSnapshot) {
+        final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
 
-            _buildHeroBanner(),
+        final String rawNombre =
+            userData?['nombreApellido'] ?? userData?['nombre'] ?? 'Entrenador';
+        final String nombreUsuario =
+            rawNombre.trim().isEmpty ? 'Entrenador' : rawNombre.trim();
+        final String photoUrl = userData?['photoUrl'] ?? '';
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('deportes')
-                    .where('entrenadorUid', isEqualTo: userId)
-                    .snapshots(),
-                builder: (context, sportsSnapshot) {
-                  final sportsDocs = sportsSnapshot.data?.docs ?? [];
-                  final int sesionesHoyCount = sportsDocs.length;
+        return Scaffold(
+          backgroundColor: bgLight,
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildTopNavbar(context, nombreUsuario, photoUrl),
 
-                  return StreamBuilder<QuerySnapshot>(
+                _buildHeroBanner(nombreUsuario),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
+                  child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
-                        .collection('inscripciones')
+                        .collection('deportes')
+                        .where('entrenadorUid', isEqualTo: userId)
                         .snapshots(),
-                    builder: (context, inscripcionesSnapshot) {
-                      final allInscripciones =
-                          inscripcionesSnapshot.data?.docs ?? [];
-
-                      final sportIds = sportsDocs.map((doc) => doc.id).toSet();
-                      final myStudents = allInscripciones.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        return sportIds.contains(data['deporteId']);
-                      }).toList();
-
-                      final int totalAtletas =
-                          myStudents.isEmpty ? 142 : myStudents.length;
+                    builder: (context, sportsSnapshot) {
+                      final sportsDocs = sportsSnapshot.data?.docs ?? [];
+                      final int sesionesHoyCount = sportsDocs.length;
 
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
-                            .collection('asistencias')
-                            .where('entrenadorUid', isEqualTo: userId)
+                            .collection('inscripciones')
                             .snapshots(),
-                        builder: (context, asistenciasSnapshot) {
-                          final asistenciasDocs =
-                              asistenciasSnapshot.data?.docs ?? [];
+                        builder: (context, inscripcionesSnapshot) {
+                          final allInscripciones =
+                              inscripcionesSnapshot.data?.docs ?? [];
 
-                          // Extraer deportes que ya tienen asistencia registrada HOY
-                          final Set<String> completedSportIds = {};
-                          int presentesCount = 0;
-
-                          for (var doc in asistenciasDocs) {
+                          final sportIds =
+                              sportsDocs.map((doc) => doc.id).toSet();
+                          final myStudents = allInscripciones.where((doc) {
                             final data = doc.data() as Map<String, dynamic>;
-                            if (data['fecha'] == fechaHoy && data['deporteId'] != null) {
-                              completedSportIds.add(data['deporteId'].toString());
-                            }
-                            if (data['estado'] == 'Presente' || data['estado'] == 'presente') {
-                              presentesCount++;
-                            }
-                          }
+                            return sportIds.contains(data['deporteId']);
+                          }).toList();
 
-                          final double asistenciaPromedio = asistenciasDocs.isEmpty
-                              ? 88.0
-                              : (presentesCount / asistenciasDocs.length) * 100;
+                          final int totalAtletas =
+                              myStudents.isEmpty ? 142 : myStudents.length;
 
-                          return Column(
-                            children: [
-                              // FILA DE MÉTRICAS KPI
-                              _buildKpiGrid(
-                                totalAtletas: totalAtletas,
-                                asistenciaPromedio:
-                                    asistenciaPromedio.toStringAsFixed(0),
-                                sesionesHoy:
-                                    sesionesHoyCount == 0 ? 3 : sesionesHoyCount,
-                              ),
-                              const SizedBox(height: 30),
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('asistencias')
+                                .where('entrenadorUid', isEqualTo: userId)
+                                .snapshots(),
+                            builder: (context, asistenciasSnapshot) {
+                              final asistenciasDocs =
+                                  asistenciasSnapshot.data?.docs ?? [];
 
-                              // DISPOSICIÓN PRINCIPAL (COLUMNA IZQUIERDA Y DERECHA)
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final bool isDesktop = constraints.maxWidth > 900;
-                                  return Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // COLUMNA IZQUIERDA (SESIONES Y ACTIVIDAD)
-                                      Expanded(
-                                        flex: isDesktop ? 2 : 1,
-                                        child: Column(
-                                          children: [
-                                            _buildSessionsList(
-                                              sportsDocs,
-                                              completedSportIds,
+                              final Set<String> completedSportIds = {};
+
+                              for (var doc in asistenciasDocs) {
+                                final data =
+                                    doc.data() as Map<String, dynamic>;
+                                if (data['fecha'] == fechaHoy &&
+                                    data['deporteId'] != null) {
+                                  completedSportIds
+                                      .add(data['deporteId'].toString());
+                                }
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildKpiGrid(
+                                    totalAtletas: totalAtletas,
+                                    sesionesHoy: sesionesHoyCount == 0
+                                        ? 3
+                                        : sesionesHoyCount,
+                                  ),
+                                  const SizedBox(height: 32),
+
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final bool isDesktop =
+                                          constraints.maxWidth > 900;
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            flex: isDesktop ? 2 : 1,
+                                            child: Column(
+                                              children: [
+                                                _buildSessionsList(
+                                                  sportsDocs,
+                                                  completedSportIds,
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(height: 24),
-                                            _buildNewSessionDashedCard(),
-                                            const SizedBox(height: 30),
-                                            _buildRecentActivitySection(),
-                                          ],
-                                        ),
-                                      ),
-                                      if (isDesktop) const SizedBox(width: 24),
-
-                                      // COLUMNA DERECHA (AVISOS, EVENTOS, RENDIMIENTO)
-                                      if (isDesktop)
-                                        Expanded(
-                                          flex: 1,
-                                          child: Column(
-                                            children: [
-                                              _buildCriticalAlertsCard(),
-                                              const SizedBox(height: 24),
-                                              _buildUpcomingEventsCard(),
-                                              const SizedBox(height: 24),
-                                              _buildWeeklyPerformanceCard(),
-                                            ],
                                           ),
-                                        ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ],
+                                          if (isDesktop)
+                                            const SizedBox(width: 28),
+
+                                          if (isDesktop)
+                                            Expanded(
+                                              flex: 1,
+                                              child: Column(
+                                                children: [
+                                                  _buildCriticalAlertsCard(),
+                                                  const SizedBox(height: 24),
+                                                  _buildUpcomingEventsCard(),
+                                                  const SizedBox(height: 24),
+                                                  _buildWeeklyPerformanceCard(),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
                       );
                     },
-                  );
-                },
-              ),
-            ),
+                  ),
+                ),
 
-            _buildFooter(),
-          ],
-        ),
-      ),
+                _buildFooter(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   // ===========================================================================
-  // WIDGETS AUXILIARES
+  // BARRA SUPERIOR (NAVBAR) CON FOTO DINÁMICA
   // ===========================================================================
 
-  Widget _buildTopNavbar(BuildContext context) {
+  Widget _buildTopNavbar(
+      BuildContext context, String nombre, String photoUrl) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
       color: Colors.white,
       child: Row(
         children: [
           Image.asset(
             'lib/assets/Logo.png',
-            height: 38,
+            height: 58,
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) => Row(
               children: [
@@ -200,13 +230,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     color: blueDark,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.fitness_center, color: Colors.white, size: 18),
+                  child: const Icon(Icons.fitness_center,
+                      color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 8),
                 const Text(
                   'VirtuMet',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: blueDark,
                   ),
@@ -215,26 +246,68 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             ),
           ),
           const SizedBox(width: 40),
-          _navLink('Catálogo'),
-          _navLink('Mis Inscripciones'),
+          _navLink('Mis Disciplinas'),
+          _navLink('Nómina y Asistencia'),
           _navLink('Anuncios'),
           _navLink('Comunidad'),
           const Spacer(),
           Row(
             children: [
-              const CircleAvatar(
-                radius: 14,
-                backgroundColor: Color(0xFFE9ECEF),
-                child: Icon(Icons.person, size: 18, color: blueDark),
+              // ÁREA DE PERFIL CLICABLE HACIA EDICIÓN DE PERFIL
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ProfileEditPage(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    children: [
+                      // CÍRCULO CON LA FOTO MOSTRADA DINÁMICAMENTE
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: blueDark.withValues(alpha: 0.08),
+                          border: Border.all(
+                            color: orangePrimary.withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                          image: photoUrl.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(photoUrl),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: photoUrl.isEmpty
+                            ? const Icon(Icons.person_outline,
+                                size: 18, color: blueDark)
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        nombre,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: blueDark,
+                            fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'Entrenador',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: blueDark, fontSize: 13),
-              ),
+              const SizedBox(width: 12),
               IconButton(
-                icon: const Icon(Icons.logout, size: 18, color: Colors.grey),
+                icon: const Icon(Icons.logout_rounded,
+                    size: 18, color: Colors.grey),
                 onPressed: _handleLogout,
                 tooltip: 'Cerrar Sesión',
               ),
@@ -252,17 +325,17 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         title,
         style: const TextStyle(
           color: blueDark,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           fontSize: 13,
         ),
       ),
     );
   }
 
-  Widget _buildHeroBanner() {
+  Widget _buildHeroBanner(String nombre) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 48),
       decoration: const BoxDecoration(
         color: navyHeader,
         image: DecorationImage(
@@ -272,7 +345,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           fit: BoxFit.cover,
           alignment: Alignment.topRight,
           colorFilter: ColorFilter.mode(
-            Color(0x550A192F),
+            Color(0x33000000),
             BlendMode.darken,
           ),
         ),
@@ -281,7 +354,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
               color: orangePrimary,
               borderRadius: BorderRadius.circular(20),
@@ -292,24 +365,43 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   color: Colors.white,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1),
+                  letterSpacing: 1.1),
             ),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            '¡HOLA DE NUEVO, ENTRENADOR!',
-            style: TextStyle(
-                fontSize: 28,
+          const SizedBox(height: 14),
+          Text(
+            '¡HOLA DE NUEVO, ${nombre.toUpperCase()}!',
+            style: const TextStyle(
+                fontSize: 32,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
-                letterSpacing: 0.5),
+                letterSpacing: 0.5,
+                shadows: [
+                  Shadow(
+                    offset: Offset(0, 2),
+                    blurRadius: 6.0,
+                    color: Colors.black45,
+                  ),
+                ]),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           const Text(
-            'Tienes 3 sesiones programadas para hoy. El clima es ideal para la práctica en campo abierto.',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            'Tienes 3 sesiones programadas para hoy. Revisa el listado de atletas e ingresa a registrar sus asistencias.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+              shadows: [
+                Shadow(
+                  offset: Offset(0, 1),
+                  blurRadius: 4.0,
+                  color: Colors.black45,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Row(
             children: [
               ElevatedButton.icon(
@@ -317,28 +409,32 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   backgroundColor: orangePrimary,
                   foregroundColor: Colors.white,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(10)),
+                  elevation: 2,
                 ),
                 onPressed: () {},
-                icon: const Icon(Icons.play_arrow, size: 18),
-                label: const Text('Iniciar Entrenamiento Actual →',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.people_alt_rounded, size: 20),
+                label: const Text('Ver Nómina de Atletas →',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
               const SizedBox(width: 14),
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white54),
+                  side: const BorderSide(color: Colors.white, width: 1.5),
+                  backgroundColor: Colors.black26,
                   foregroundColor: Colors.white,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () {},
                 child: const Text('Ver Horario Completo',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ],
           ),
@@ -347,39 +443,63 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildKpiGrid(
-      {required int totalAtletas,
-      required String asistenciaPromedio,
-      required int sesionesHoy}) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
-        _kpiCard(Icons.groups_outlined, 'TOTAL ATLETAS',
-            totalAtletas.toString(), '+12%', Colors.green),
-        _kpiCard(Icons.verified_outlined, 'ASISTENCIA PROM.',
-            '$asistenciaPromedio%', '+3%', Colors.green),
-        _kpiCard(Icons.calendar_today_outlined, 'SESIONES HOY',
-            sesionesHoy.toString().padLeft(2, '0'), null, null),
-        _kpiCard(
-            Icons.directions_run_outlined, 'KILÓMETROS REC.', '12.4K', '+5%', Colors.green),
-      ],
+  Widget _buildKpiGrid({required int totalAtletas, required int sesionesHoy}) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 20,
+        runSpacing: 20,
+        children: [
+          _kpiCard(
+            Icons.groups_outlined,
+            'TOTAL ATLETAS',
+            totalAtletas.toString(),
+            '+12%',
+            Colors.green,
+            accentColor: orangePrimary,
+          ),
+          _kpiCard(
+            Icons.calendar_today_outlined,
+            'SESIONES HOY',
+            sesionesHoy.toString().padLeft(2, '0'),
+            null,
+            null,
+            accentColor: blueDark,
+          ),
+          _kpiCard(
+            Icons.event_available_outlined,
+            'PRÓXIMOS EVENTOS',
+            '02',
+            null,
+            null,
+            accentColor: orangePrimary,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _kpiCard(IconData icon, String label, String value, String? badge,
-      Color? badgeColor) {
+  Widget _kpiCard(
+    IconData icon,
+    String label,
+    String value,
+    String? badge,
+    Color? badgeColor, {
+    required Color accentColor,
+  }) {
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(20),
+      width: 230,
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
+            color: accentColor.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -388,12 +508,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: blueDark, size: 22),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
               if (badge != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                      color: badgeColor!.withValues(alpha: 0.1),
+                      color: badgeColor!.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12)),
                   child: Text(badge,
                       style: TextStyle(
@@ -403,17 +531,17 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(label,
               style: const TextStyle(
                   fontSize: 10,
                   color: Colors.grey,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5)),
+                  letterSpacing: 0.6)),
           const SizedBox(height: 4),
           Text(value,
               style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w900, color: blueDark)),
+                  fontSize: 28, fontWeight: FontWeight.w900, color: blueDark)),
         ],
       ),
     );
@@ -421,7 +549,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildSessionsList(
       List<QueryDocumentSnapshot> sportsDocs, Set<String> completedSportIds) {
-    // 1. Caso sin documentos en Firestore: Usar datos estáticos y aplicarle el filtro del buscador
     final defaultSessions = [
       {
         'id': 'deporte_1',
@@ -455,7 +582,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return name.contains(_searchQuery) || location.contains(_searchQuery);
     }).toList();
 
-    // 2. Caso con documentos en Firestore: Aplicarle el filtro del buscador
     final filteredSportsDocs = sportsDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final name = (data['nombre'] ?? '').toString().toLowerCase();
@@ -464,13 +590,16 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     }).toList();
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -484,44 +613,42 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 children: [
                   Text('Sesiones de Hoy',
                       style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: blueDark)),
+                  SizedBox(height: 2),
                   Text('Viernes, 25 de Octubre',
                       style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 200,
-                    height: 38,
-                    child: TextField(
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val.toLowerCase().trim();
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Buscar grupo...',
-                        hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
-                        prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
-                        filled: true,
-                        fillColor: const Color(0xFFF3F5F8),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      ),
-                    ),
+              SizedBox(
+                width: 220,
+                height: 40,
+                child: TextField(
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.toLowerCase().trim();
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Buscar grupo...',
+                    hintStyle:
+                        const TextStyle(fontSize: 12, color: Colors.grey),
+                    prefixIcon:
+                        const Icon(Icons.search, size: 18, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF3F5F8),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Renderizar lista según Firestore o Predeterminados
           if (sportsDocs.isEmpty) ...[
             if (filteredDefaults.isEmpty)
               const Padding(
@@ -543,8 +670,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 final String? badgeText = item['badgeText'] as String?;
                 final bool isCompleted = completedSportIds.contains(id);
 
-                return _sessionCard(
-                    id, nombre, horario, lugar, inscritos, badgeText, isCompleted);
+                return _sessionCard(id, nombre, horario, lugar, inscritos,
+                    badgeText, isCompleted);
               }),
           ] else ...[
             if (filteredSportsDocs.isEmpty)
@@ -566,10 +693,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 final String lugar = data['lugar'] ?? 'Cancha Techada 1';
                 final int cupo = data['cupoMaximo'] ?? 20;
 
-                final bool isCompleted = completedSportIds.contains(deporteId);
+                final bool isCompleted =
+                    completedSportIds.contains(deporteId);
 
-                return _sessionCard(
-                    deporteId, nombre, horario, lugar, cupo, null, isCompleted);
+                return _sessionCard(deporteId, nombre, horario, lugar, cupo,
+                    null, isCompleted);
               }),
           ],
         ],
@@ -580,16 +708,23 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Widget _sessionCard(String id, String nombre, String horario, String lugar,
       int inscritos, String? badgeText, bool isCompleted) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.sports_soccer, color: blueDark, size: 24),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_getSportIcon(nombre), color: blueDark, size: 22),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -603,13 +738,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                             fontSize: 15,
                             color: blueDark)),
                     if (badgeText != null) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: orangePrimary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
+                          color: orangePrimary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           badgeText,
@@ -622,22 +757,35 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text('$horario  •  $lugar  •  $inscritos Inscritos',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 6),
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    children: [
+                      TextSpan(text: '$horario  •  $lugar  •  '),
+                      TextSpan(
+                        text: '$inscritos Inscritos',
+                        style: const TextStyle(
+                          color: orangePrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-
           if (isCompleted)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
                 side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               ),
               onPressed: () {
                 Navigator.push(
@@ -668,9 +816,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               onPressed: () {
@@ -692,107 +840,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildNewSessionDashedCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
-      ),
-      child: const Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline, color: blueDark, size: 20),
-            SizedBox(width: 8),
-            Text('PROGRAMAR NUEVA SESIÓN',
-                style: TextStyle(
-                    color: blueDark, fontWeight: FontWeight.bold, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentActivitySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Actividad Reciente de Estudiantes',
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold, color: blueDark)),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            _activityCard('RICARDO MENDEZ', 'Preinscripción confirmada',
-                'Hace 10 min'),
-            const SizedBox(width: 12),
-            _activityCard(
-                'GABRIELA SOTO', 'Cargó examen físico', 'Hace 45 min'),
-            const SizedBox(width: 12),
-            _activityCard('LUIS NAVARRO', 'Justificativo de falta', 'Hace 2 h'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _activityCard(String name, String action, String time) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)
-          ],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: blueDark.withValues(alpha: 0.1),
-              radius: 16,
-              child: Text(name[0],
-                  style: const TextStyle(
-                      color: blueDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          color: blueDark)),
-                  Text(action,
-                      style:
-                          const TextStyle(fontSize: 10, color: Colors.grey),
-                      overflow: TextOverflow.ellipsis),
-                  Text(time,
-                      style: const TextStyle(
-                          fontSize: 9,
-                          color: orangePrimary,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildCriticalAlertsCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: blueDark,
         borderRadius: BorderRadius.circular(16),
@@ -813,10 +863,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _alertItem('Ficha médica vencida: Juan Pérez'),
           _alertItem('Solicitud de cambio de horario: Voleibol'),
           _alertItem('Mantenimiento Cancha 1: Mañana 08:00'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           const Text('VER TODAS LAS ALERTAS >',
               style: TextStyle(
                   color: orangePrimary,
@@ -849,13 +898,16 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildUpcomingEventsCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -864,13 +916,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const Text('PRÓXIMOS EVENTOS',
               style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 14, color: blueDark)),
+          const SizedBox(height: 2),
           const Text('Calendario Institucional',
               style: TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 16),
           _eventItem('Torneo Inter-Facultades', 'OCT 28', Colors.green),
           _eventItem('Cierre de Inscripciones', 'NOV 02', orangePrimary),
           _eventItem('Exhibición de Natación', 'NOV 05', Colors.blue),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           const Text('VER CALENDARIO COMPLETO',
               style: TextStyle(
                   color: blueDark, fontSize: 11, fontWeight: FontWeight.bold)),
@@ -908,7 +961,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildWeeklyPerformanceCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: navyHeader,
         borderRadius: BorderRadius.circular(16),
@@ -940,20 +993,16 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const SizedBox(height: 8),
           const Text(
             'Has completado 12 de las 13 sesiones programadas esta semana. ¡Excelente ritmo!',
-            style: TextStyle(color: Colors.white54, fontSize: 11),
+            style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
           ),
         ],
       ),
     );
   }
 
-  // ===========================================================================
-  // PIE DE PÁGINA (FOOTER CON COLUMNA ASISTENCIA CENTRADA)
-  // ===========================================================================
-
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 50),
       color: navyHeader,
       child: Column(
         children: [
@@ -981,15 +1030,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     const SizedBox(height: 12),
                     const Text(
                       'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                      style: TextStyle(
+                          color: Colors.white60, fontSize: 12, height: 1.4),
                     ),
                   ],
                 ),
               ),
-
-              // ESPACIADOR IZQUIERDO
               const Spacer(flex: 1),
-
               Expanded(
                 flex: 3,
                 child: Column(
@@ -1016,7 +1063,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   ],
                 ),
               ),
-
               const Spacer(flex: 1),
             ],
           ),
