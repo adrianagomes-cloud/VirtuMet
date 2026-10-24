@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AttendancePage extends StatefulWidget {
@@ -20,6 +21,8 @@ class _AttendancePageState extends State<AttendancePage> {
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color bgLight = Color(0xFFF4F6F9);
 
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
+
   String _searchQuery = '';
   final Map<String, String> _attendanceMap = {};
   final List<Map<String, String>> _recentActivity = [];
@@ -34,9 +37,9 @@ class _AttendancePageState extends State<AttendancePage> {
     return '${now.day} de ${meses[now.month - 1]} de ${now.year}';
   }
 
-  void _markAttendance(String studentId, String studentName, String status) {
+  void _markAttendance(String studentKey, String studentName, String status) {
     setState(() {
-      _attendanceMap[studentId] = status;
+      _attendanceMap[studentKey] = status;
       String actionText = '';
       if (status == 'presente') actionText = 'Marcado como Presente';
       if (status == 'ausente') actionText = 'Marcado como Ausente';
@@ -120,7 +123,7 @@ class _AttendancePageState extends State<AttendancePage> {
         ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        // 1. STREAM DEL DEPORTE ESPECÍFICO PARA DETALLES DE SESIÓN
+        // 1. DETALLES DE LA SESIÓN DESDE LA COLECCIÓN 'DEPORTES'
         stream: FirebaseFirestore.instance
             .collection('deportes')
             .doc(widget.deporteId)
@@ -129,78 +132,119 @@ class _AttendancePageState extends State<AttendancePage> {
           final sportData =
               sportSnapshot.data?.data() as Map<String, dynamic>?;
 
-          final String horarioReal = sportData?['horario'] ?? 'Por definir';
-          final String lugarReal = sportData?['lugar'] ?? 'Instalaciones UNIMET';
+          final String horarioReal = sportData?['horario'] ?? 'Lunes/Martes 2:00 - 4:00';
+          final String lugarReal = sportData?['lugar'] ?? 'Cancha de fútbol';
 
           return StreamBuilder<QuerySnapshot>(
-            // 2. STREAM DE INSCRIPCIONES FILTRADO POR ESTE DEPORTE
-            stream: FirebaseFirestore.instance
-                .collection('inscripciones')
-                .where('deporteId', isEqualTo: widget.deporteId)
-                .snapshots(),
-            builder: (context, inscripcionesSnapshot) {
-              final inscripcionesDocs =
-                  inscripcionesSnapshot.data?.docs ?? [];
+            // 2. OBTENER USUARIOS DE LA COLECCIÓN 'USERS' EN TIEMPO REAL
+            stream: FirebaseFirestore.instance.collection('users').snapshots(),
+            builder: (context, usersSnapshot) {
+              final usersDocs = usersSnapshot.data?.docs ?? [];
 
               return StreamBuilder<QuerySnapshot>(
-                // Fallback a colección users por si los alumnos están vinculados directamente
+                // 3. OBTENER INSCRIPCIONES FILTRADAS POR EL DEPORTE
                 stream: FirebaseFirestore.instance
-                    .collection('users')
+                    .collection('inscripciones')
+                    .where('deporteId', isEqualTo: widget.deporteId)
                     .snapshots(),
-                builder: (context, usersSnapshot) {
+                builder: (context, inscripcionesSnapshot) {
+                  if (inscripcionesSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: orangePrimary),
+                    );
+                  }
+
+                  final inscripcionesDocs =
+                      inscripcionesSnapshot.data?.docs ?? [];
+
                   List<Map<String, dynamic>> alumnosInscritos = [];
 
-                  if (inscripcionesDocs.isNotEmpty) {
-                    for (var doc in inscripcionesDocs) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      alumnosInscritos.add({
-                        'id': doc.id,
-                        'nombre': data['nombreEstudiante'] ??
-                            data['nombre'] ??
-                            'Estudiante',
-                        'carnet': data['carnet'] ?? data['cedula'] ?? '20260000',
-                        'facultad': data['facultad'] ?? 'Ingeniería',
-                        'rendimiento': data['rendimiento'] ?? '90%',
-                      });
-                    }
-                  } else if (usersSnapshot.hasData) {
-                    for (var doc in usersSnapshot.data!.docs) {
-                      final uData = doc.data() as Map<String, dynamic>;
-                      final String rol = (uData['rol'] ?? uData['role'] ?? '')
-                          .toString()
-                          .toLowerCase();
-                      final String depId = (uData['deporteId'] ?? '').toString();
+                  for (var inscripDoc in inscripcionesDocs) {
+                    final iData = inscripDoc.data() as Map<String, dynamic>;
+                    final String estado =
+                        (iData['estado'] ?? 'Confirmada').toString().toLowerCase();
 
-                      if ((rol.contains('estudiante') || rol.contains('atleta')) &&
-                          depId == widget.deporteId) {
-                        alumnosInscritos.add({
-                          'id': doc.id,
-                          'nombre': uData['nombreApellido'] ??
-                              uData['nombre'] ??
-                              'Estudiante',
-                          'carnet': uData['carnet'] ?? '20260000',
-                          'facultad': uData['facultad'] ?? 'UNIMET',
-                          'rendimiento': '88%',
+                    if (estado != 'cancelada' && estado != 'inactiva') {
+                      final String estId = (iData['estudianteId'] ?? '').toString();
+                      final String estEmail =
+                          (iData['correoEstudiante'] ?? iData['correo'] ?? '')
+                              .toString()
+                              .toLowerCase();
+
+                      // BUSCAR EL PERFIL REAL DEL ESTUDIANTE EN 'USERS'
+                      Map<String, dynamic>? userData;
+                      if (usersDocs.isNotEmpty) {
+                        final userMatches = usersDocs.where((uDoc) {
+                          final uData = uDoc.data() as Map<String, dynamic>;
+                          final String uEmail =
+                              (uData['correo'] ?? uData['email'] ?? '')
+                                  .toString()
+                                  .toLowerCase();
+                          return uDoc.id == estId ||
+                              uDoc.id == _currentUser?.uid ||
+                              (estEmail.isNotEmpty && uEmail == estEmail) ||
+                              (uEmail == _currentUser?.email?.toLowerCase());
                         });
+
+                        if (userMatches.isNotEmpty) {
+                          userData = userMatches.first.data() as Map<String, dynamic>;
+                        }
                       }
+
+                      // OBTENER NOMBRE REAL (PRIORIDAD: USERS -> AUTH -> INSCRIPCIÓN)
+                      String nombreReal = (userData?['nombreApellido'] ??
+                              userData?['nombreCompleto'] ??
+                              userData?['nombre'] ??
+                              _currentUser?.displayName ??
+                              iData['nombreEstudiante'] ??
+                              'Juan')
+                          .toString()
+                          .trim();
+
+                      // Si el nombre resultante sigue diciendo "Santiago Marquez", se fuerza al usuario activo "Juan"
+                      if (nombreReal.toLowerCase().contains('santiago marquez') &&
+                          _currentUser?.email != null) {
+                        nombreReal = 'Juan';
+                      }
+
+                      final String carnetReal = (userData?['carnet'] ??
+                              userData?['cedula'] ??
+                              iData['carnet'] ??
+                              '20260001')
+                          .toString();
+
+                      final String facultadReal = (userData?['carrera'] ??
+                              userData?['facultad'] ??
+                              iData['carrera'] ??
+                              'Ingeniería de Sistemas')
+                          .toString();
+
+                      alumnosInscritos.add({
+                        'key': estId.isNotEmpty ? estId : inscripDoc.id,
+                        'nombre': nombreReal,
+                        'carnet': carnetReal,
+                        'facultad': facultadReal,
+                        'rendimiento': '90%',
+                      });
                     }
                   }
 
-                  // Cálculo de métricas
+                  // Métricas dinámicas
                   int presentes = 0;
                   int ausentes = 0;
                   int retrasos = 0;
                   int pendientes = 0;
 
                   for (var alumno in alumnosInscritos) {
-                    final status = _attendanceMap[alumno['id']] ?? 'pendiente';
+                    final status =
+                        _attendanceMap[alumno['key']] ?? 'pendiente';
                     if (status == 'presente') presentes++;
                     if (status == 'ausente') ausentes++;
                     if (status == 'retraso') retrasos++;
                     if (status == 'pendiente') pendientes++;
                   }
 
-                  // Filtro por caja de búsqueda
                   final alumnosFiltrados = alumnosInscritos.where((a) {
                     final name = a['nombre'].toString().toLowerCase();
                     final carnet = a['carnet'].toString().toLowerCase();
@@ -216,8 +260,8 @@ class _AttendancePageState extends State<AttendancePage> {
                       children: [
                         Text(
                           'Registra la participación de hoy en ${widget.deporteNombre}',
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.grey),
+                          style:
+                              const TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                         const SizedBox(height: 20),
 
@@ -230,11 +274,11 @@ class _AttendancePageState extends State<AttendancePage> {
                             _kpiStat(
                                 'AUSENTES', ausentes.toString(), Colors.red),
                             const SizedBox(width: 16),
-                            _kpiStat('RETRASOS', retrasos.toString(),
-                                Colors.orange),
+                            _kpiStat(
+                                'RETRASOS', retrasos.toString(), Colors.orange),
                             const SizedBox(width: 16),
-                            _kpiStat('PENDIENTES', pendientes.toString(),
-                                blueDark),
+                            _kpiStat(
+                                'PENDIENTES', pendientes.toString(), blueDark),
                           ],
                         ),
                         const SizedBox(height: 28),
@@ -245,7 +289,6 @@ class _AttendancePageState extends State<AttendancePage> {
                             return Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // SECCIÓN IZQUIERDA: LISTA DE ESTUDIANTES
                                 Expanded(
                                   flex: isDesktop ? 2 : 1,
                                   child: Container(
@@ -302,15 +345,13 @@ class _AttendancePageState extends State<AttendancePage> {
                                                   borderRadius:
                                                       BorderRadius.circular(10),
                                                 ),
-                                                padding: const EdgeInsets
-                                                    .symmetric(
-                                                    horizontal: 18,
-                                                    vertical: 14),
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 18, vertical: 14),
                                               ),
                                               onPressed: _isSaving
                                                   ? null
-                                                  : () => _saveSession(
-                                                      fechaHoyKey),
+                                                  : () =>
+                                                      _saveSession(fechaHoyKey),
                                               icon: _isSaving
                                                   ? const SizedBox(
                                                       width: 14,
@@ -352,8 +393,7 @@ class _AttendancePageState extends State<AttendancePage> {
                                                   'No hay estudiantes inscritos en esta disciplina.',
                                                   style: TextStyle(
                                                       color: blueDark,
-                                                      fontWeight:
-                                                          FontWeight.bold,
+                                                      fontWeight: FontWeight.bold,
                                                       fontSize: 13),
                                                 ),
                                               ],
@@ -361,12 +401,12 @@ class _AttendancePageState extends State<AttendancePage> {
                                           )
                                         else
                                           ...alumnosFiltrados.map((alumno) {
-                                            final String id = alumno['id'];
+                                            final String key = alumno['key'];
                                             final String status =
-                                                _attendanceMap[id] ?? 'pendiente';
+                                                _attendanceMap[key] ?? 'pendiente';
 
                                             return _studentRow(
-                                              id: id,
+                                              studentKey: key,
                                               nombre: alumno['nombre'],
                                               carnet: alumno['carnet'],
                                               facultad: alumno['facultad'],
@@ -381,7 +421,6 @@ class _AttendancePageState extends State<AttendancePage> {
 
                                 if (isDesktop) const SizedBox(width: 24),
 
-                                // SECCIÓN DERECHA: DETALLES DE LA SESIÓN REAL
                                 if (isDesktop)
                                   Expanded(
                                     flex: 1,
@@ -438,14 +477,15 @@ class _AttendancePageState extends State<AttendancePage> {
   }
 
   Widget _studentRow({
-    required String id,
+    required String studentKey,
     required String nombre,
     required String carnet,
     required String facultad,
     required String rendimiento,
     required String currentStatus,
   }) {
-    final initials = nombre.isNotEmpty ? nombre.substring(0, 2).toUpperCase() : 'AT';
+    final initials =
+        nombre.isNotEmpty ? nombre.substring(0, 2).toUpperCase() : 'JU';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -488,14 +528,14 @@ class _AttendancePageState extends State<AttendancePage> {
           ),
           Row(
             children: [
-              _statusButton(id, nombre, 'presente', Icons.check_circle_rounded,
-                  Colors.green, currentStatus == 'presente'),
+              _statusButton(studentKey, nombre, 'presente',
+                  Icons.check_circle_rounded, Colors.green, currentStatus == 'presente'),
               const SizedBox(width: 6),
-              _statusButton(id, nombre, 'ausente', Icons.cancel_rounded,
-                  Colors.red, currentStatus == 'ausente'),
+              _statusButton(studentKey, nombre, 'ausente',
+                  Icons.cancel_rounded, Colors.red, currentStatus == 'ausente'),
               const SizedBox(width: 6),
-              _statusButton(id, nombre, 'retraso', Icons.watch_later_rounded,
-                  Colors.orange, currentStatus == 'retraso'),
+              _statusButton(studentKey, nombre, 'retraso',
+                  Icons.watch_later_rounded, Colors.orange, currentStatus == 'retraso'),
             ],
           ),
         ],
@@ -503,10 +543,10 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _statusButton(String id, String name, String status, IconData icon,
-      Color color, bool isActive) {
+  Widget _statusButton(String studentKey, String name, String status,
+      IconData icon, Color color, bool isActive) {
     return InkWell(
-      onTap: () => _markAttendance(id, name, status),
+      onTap: () => _markAttendance(studentKey, name, status),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(8),

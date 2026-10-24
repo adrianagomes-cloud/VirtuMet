@@ -14,7 +14,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   static const Color bgLight = Color(0xFFF4F6F9);
 
   String _searchQuery = '';
-  String _selectedCategory = 'Todas las disciplinas';
+  final String _selectedCategory = 'Todas las disciplinas';
 
   final List<String> _categories = [
     'Todas las disciplinas',
@@ -126,7 +126,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                 ),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
-                                  value: _categories.contains(categoriaVal)
+                                  initialValue: _categories.contains(categoriaVal)
                                       ? categoriaVal
                                       : 'De equipo',
                                   decoration: _inputDecoration(Icons.category),
@@ -162,7 +162,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                 ),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
-                                  value: estadoVal,
+                                  initialValue: estadoVal,
                                   decoration: _inputDecoration(Icons.toggle_on),
                                   items: ['Activo', 'Mantenimiento', 'Inactivo']
                                       .map((e) => DropdownMenuItem(
@@ -256,7 +256,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                           : null);
 
                               return DropdownButtonFormField<String>(
-                                value: selectedItem,
+                                initialValue: selectedItem,
                                 decoration: _inputDecoration(
                                   Icons.person_outline,
                                   hint: 'Seleccionar entrenador',
@@ -611,7 +611,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         height: 140,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
+                        errorBuilder: (_, _, _) =>
                             _cardFallbackHeader(),
                       )
                     : _cardFallbackHeader(),
