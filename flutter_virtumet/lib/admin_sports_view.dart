@@ -344,6 +344,31 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                   onPressed: () async {
                     if (nombreCtrl.text.trim().isEmpty) return;
 
+                    // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO PARA EVITAR DESVINCULACIONES
+                    String selectedEntrenadorUid = '';
+                    if (entrenadorVal != null && entrenadorVal != 'Sin Entrenador') {
+                      final userQuery = await FirebaseFirestore.instance
+                          .collection('users')
+                          .get();
+                      
+                      for (var uDoc in userQuery.docs) {
+                        final uData = uDoc.data();
+                        final String fullName = (uData['nombreApellido'] ??
+                                uData['nombreCompleto'] ??
+                                uData['nombre'] ?? '')
+                            .toString()
+                            .trim();
+                        final String emailName = (uData['correo'] ?? uData['email'] ?? '')
+                            .toString()
+                            .trim();
+
+                        if (fullName == entrenadorVal || emailName == entrenadorVal) {
+                          selectedEntrenadorUid = uDoc.id;
+                          break;
+                        }
+                      }
+                    }
+
                     final payload = {
                       'codigo': codigoCtrl.text.trim().toUpperCase(),
                       'nombre': nombreCtrl.text.trim(),
@@ -353,6 +378,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                       'horario': horarioCtrl.text.trim(),
                       'lugar': lugarCtrl.text.trim(),
                       'entrenador': entrenadorVal ?? 'Sin Entrenador',
+                      'entrenadorUid': selectedEntrenadorUid,
                       'categoria': categoriaVal,
                       'estado': estadoVal,
                       'imageUrl': imageCtrl.text.trim().isEmpty
@@ -761,7 +787,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF1F2937)),
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -783,16 +809,13 @@ class _AdminSportsViewState extends State<AdminSportsView> {
         Text(
           label,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-            color: blueDark,
-          ),
+              fontWeight: FontWeight.bold, fontSize: 12, color: blueDark),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          style: const TextStyle(fontSize: 13),
+          style: const TextStyle(fontSize: 13, color: blueDark),
           decoration: _inputDecoration(icon, hint: hint),
         ),
       ],
@@ -806,7 +829,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
       prefixIcon: Icon(icon, size: 18, color: blueDark),
       filled: true,
       fillColor: const Color(0xFFF8F9FA),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFFCBD5E1)),

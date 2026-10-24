@@ -316,8 +316,13 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             final d = doc.data() as Map<String, dynamic>;
             final String docEmail =
                 (d['correo'] ?? d['email'] ?? '').toString().toLowerCase();
-            return doc.id == _currentUser?.uid ||
-                (authEmail.isNotEmpty && docEmail == authEmail.toLowerCase());
+            
+            // CORRECCIÓN: Filtro estricto para asegurar que sea estudiante
+            final String rol = (d['rol'] ?? d['role'] ?? '').toString().toLowerCase();
+            final bool esEstudiante = rol.isEmpty || rol == 'estudiante' || rol == 'student' || rol == 'atleta';
+
+            return (doc.id == _currentUser?.uid ||
+                (authEmail.isNotEmpty && docEmail == authEmail.toLowerCase())) && esEstudiante;
           });
 
           if (matches.isNotEmpty) {

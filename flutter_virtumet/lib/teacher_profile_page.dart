@@ -262,7 +262,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   // ===========================================================================
-  // GUARDAR CAMBIOS EN FIRESTORE
+  // GUARDAR CAMBIOS EN FIRESTORE (ACTUALIZADO CON ROL DE ENTRENADOR)
   // ===========================================================================
   Future<void> _saveProfileData(String docId) async {
     setState(() => _isSaving = true);
@@ -278,6 +278,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
           'especialidad': _especialidadCtrl.text.trim(),
           'ubicacion': _ubicacionCtrl.text.trim(),
           'biografia': _biografiaCtrl.text.trim(),
+          'rol': 'entrenador', // <- Asegura que se guarde el rol de profesor correctamente
           'actualizadoEn': FieldValue.serverTimestamp(),
         });
       }
@@ -327,11 +328,18 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
             final d = doc.data() as Map<String, dynamic>;
             final String docEmail =
                 (d['correo'] ?? d['email'] ?? '').toString().toLowerCase();
-            return doc.id == _currentUser?.uid ||
-                docEmail == userEmail.toLowerCase();
+            
+            // Filtro estricto para asegurar que sea entrenador/profesor
+            final String rol = (d['rol'] ?? d['role'] ?? '').toString().toLowerCase();
+            final bool esEntrenador = rol == 'entrenador' || rol == 'teacher' || rol == 'profesor' || rol == 'admin';
+
+            return (doc.id == _currentUser?.uid ||
+                docEmail == userEmail.toLowerCase()) && esEntrenador;
           });
 
-          userDoc = matches.isNotEmpty ? matches.first : docs.first;
+          if (matches.isNotEmpty) {
+            userDoc = matches.first;
+          }
         }
 
         final Map<String, dynamic> data =
