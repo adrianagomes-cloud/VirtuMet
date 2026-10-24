@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'registration_page.dart';
 
@@ -121,7 +122,7 @@ class _Navbar extends StatelessWidget {
 }
 
 // =============================================================================
-// 2. HERO SECTION (HERO BANNER PRINCIPAL)
+// 2. HERO SECTION (HERO BANNER PRINCIPAL CON ESTADÍSTICAS EN TIEMPO REAL)
 // =============================================================================
 class _HeroSection extends StatelessWidget {
   const _HeroSection();
@@ -216,19 +217,68 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 60),
 
-          // Barra de Estadísticas
-          Wrap(
-            spacing: 50,
-            runSpacing: 20,
-            alignment: WrapAlignment.center,
-            children: const [
-              _StatItem(number: '2,500+', label: 'ATLETAS ACTIVOS'),
-              _StatItem(number: '18', label: 'DISCIPLINAS'),
-              _StatItem(number: '45', label: 'ENTRENADORES'),
-            ],
-          ),
+          // Barra de Estadísticas en Tiempo Real desde FIRESTORE
+          const _RealTimeHeroStats(),
         ],
       ),
+    );
+  }
+}
+
+// Componente Reactivo que consulta usuarios y deportes en Firestore
+class _RealTimeHeroStats extends StatelessWidget {
+  const _RealTimeHeroStats();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, usersSnapshot) {
+        int totalEstudiantes = 0;
+        int totalEntrenadores = 0;
+
+        if (usersSnapshot.hasData && usersSnapshot.data != null) {
+          for (var doc in usersSnapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final String rol =
+                (data['rol'] ?? data['role'] ?? '').toString().toLowerCase().trim();
+
+            if (rol == 'entrenador' || rol == 'profesor' || rol == 'maestro') {
+              totalEntrenadores++;
+            } else if (rol == 'estudiante' || rol == 'atleta' || rol == 'alumno') {
+              totalEstudiantes++;
+            }
+          }
+        }
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+          builder: (context, sportsSnapshot) {
+            final int totalDeportes = sportsSnapshot.data?.docs.length ?? 0;
+            final bool isLoading = !usersSnapshot.hasData || !sportsSnapshot.hasData;
+
+            return Wrap(
+              spacing: 50,
+              runSpacing: 20,
+              alignment: WrapAlignment.center,
+              children: [
+                _StatItem(
+                  number: isLoading ? '...' : '$totalEstudiantes',
+                  label: 'ATLETAS ACTIVOS',
+                ),
+                _StatItem(
+                  number: isLoading ? '...' : '$totalDeportes',
+                  label: 'DISCIPLINAS',
+                ),
+                _StatItem(
+                  number: isLoading ? '...' : '$totalEntrenadores',
+                  label: 'ENTRENADORES',
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -242,8 +292,22 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(number, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: LandingPage.orangePrimary)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600)),
+        Text(
+          number,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: LandingPage.orangePrimary,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class AttendancePage extends StatefulWidget {
   final String deporteId;
@@ -16,193 +15,81 @@ class AttendancePage extends StatefulWidget {
   State<AttendancePage> createState() => _AttendancePageState();
 }
 
-enum AttendanceStatus { presente, ausente, retraso, pendiente }
-
-class StudentAttendanceItem {
-  final String uid;
-  final String nombre;
-  final String carnet;
-  final String facultad;
-  final int rendimiento;
-  AttendanceStatus estado;
-
-  StudentAttendanceItem({
-    required this.uid,
-    required this.nombre,
-    required this.carnet,
-    required this.facultad,
-    required this.rendimiento,
-    this.estado = AttendanceStatus.pendiente,
-  });
-}
-
 class _AttendancePageState extends State<AttendancePage> {
-  // Colores corporativos VirtuMet
   static const Color orangePrimary = Color(0xFFFF5500);
   static const Color blueDark = Color(0xFF0F2C59);
-  static const Color navyHeader = Color(0xFF0A192F);
   static const Color bgLight = Color(0xFFF4F6F9);
 
   String _searchQuery = '';
+  final Map<String, String> _attendanceMap = {};
+  final List<Map<String, String>> _recentActivity = [];
   bool _isSaving = false;
 
-  final List<Map<String, String>> _recentActivities = [
-    {
-      'nombre': 'Daniel Herrera',
-      'accion': 'Marcado como Presente',
-      'tiempo': 'HACE 1 MIN'
-    },
-    {
-      'nombre': 'Valentina Pérez',
-      'accion': 'Marcado como Presente',
-      'tiempo': 'HACE 5 MIN'
-    },
-    {
-      'nombre': 'Mateo González',
-      'accion': 'Marcado con Retraso',
-      'tiempo': 'HACE 12 MIN'
-    },
-  ];
-
-  late List<StudentAttendanceItem> _students;
-
-  @override
-  void initState() {
-    super.initState();
-    _students = [
-      StudentAttendanceItem(
-        uid: 'st_1',
-        nombre: 'Alejandro Rodriguez',
-        carnet: '202110452',
-        facultad: 'Ingeniería',
-        rendimiento: 95,
-      ),
-      StudentAttendanceItem(
-        uid: 'st_2',
-        nombre: 'Sofia Valenzuela',
-        carnet: '202218891',
-        facultad: 'Derecho',
-        rendimiento: 88,
-      ),
-      StudentAttendanceItem(
-        uid: 'st_3',
-        nombre: 'Mateo González',
-        carnet: '202018123',
-        facultad: 'Ciencias Económicas',
-        rendimiento: 72,
-      ),
-      StudentAttendanceItem(
-        uid: 'st_4',
-        nombre: 'Valentina Pérez',
-        carnet: '202310555',
-        facultad: 'Estudios Liberales',
-        rendimiento: 100,
-      ),
-      StudentAttendanceItem(
-        uid: 'st_5',
-        nombre: 'Daniel Herrera',
-        carnet: '202118678',
-        facultad: 'Psicología',
-        rendimiento: 82,
-      ),
+  String _formatFechaHoy() {
+    final now = DateTime.now();
+    final meses = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
     ];
+    return '${now.day} de ${meses[now.month - 1]} de ${now.year}';
   }
 
-  // Métricas calculadas dinámicamente
-  int get countPresentes =>
-      _students.where((s) => s.estado == AttendanceStatus.presente).length;
-  int get countAusentes =>
-      _students.where((s) => s.estado == AttendanceStatus.ausente).length;
-  int get countRetrasos =>
-      _students.where((s) => s.estado == AttendanceStatus.retraso).length;
-  int get countPendientes =>
-      _students.where((s) => s.estado == AttendanceStatus.pendiente).length;
-
-  void _updateStudentStatus(
-      StudentAttendanceItem student, AttendanceStatus newStatus) {
+  void _markAttendance(String studentId, String studentName, String status) {
     setState(() {
-      student.estado = newStatus;
-
+      _attendanceMap[studentId] = status;
       String actionText = '';
-      if (newStatus == AttendanceStatus.presente) {
-        actionText = 'Marcado como Presente';
-      } else if (newStatus == AttendanceStatus.ausente) {
-        actionText = 'Marcado como Ausente';
-      } else if (newStatus == AttendanceStatus.retraso) {
-        actionText = 'Marcado con Retraso';
-      }
+      if (status == 'presente') actionText = 'Marcado como Presente';
+      if (status == 'ausente') actionText = 'Marcado como Ausente';
+      if (status == 'retraso') actionText = 'Marcado con Retraso';
 
-      if (actionText.isNotEmpty) {
-        _recentActivities.insert(0, {
-          'nombre': student.nombre,
-          'accion': actionText,
-          'tiempo': 'AHORA',
-        });
-      }
+      _recentActivity.insert(0, {
+        'nombre': studentName,
+        'accion': actionText,
+        'tiempo': 'HACE UN MOMENTO',
+      });
     });
   }
 
-  Future<void> _saveAttendance() async {
+  Future<void> _saveSession(String fechaHoy) async {
+    if (_attendanceMap.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No has registrado asistencia aún.')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
-      final DateTime now = DateTime.now();
-      final String fechaHoy =
-          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-      final String? entrenadorUid = FirebaseAuth.instance.currentUser?.uid;
+      final docRef = FirebaseFirestore.instance
+          .collection('asistencias')
+          .doc('${widget.deporteId}_$fechaHoy');
 
-      final batch = FirebaseFirestore.instance.batch();
+      await docRef.set({
+        'deporteId': widget.deporteId,
+        'deporteNombre': widget.deporteNombre,
+        'fecha': fechaHoy,
+        'actualizadoEn': FieldValue.serverTimestamp(),
+        'asistencias': _attendanceMap,
+      }, SetOptions(merge: true));
 
-      for (var student in _students) {
-        final ref = FirebaseFirestore.instance
-            .collection('asistencias')
-            .doc('${widget.deporteId}_${student.uid}_$fechaHoy');
-
-        batch.set(
-          ref,
-          {
-            'deporteId': widget.deporteId,
-            'deporteNombre': widget.deporteNombre,
-            'entrenadorUid': entrenadorUid,
-            'estudianteUid': student.uid,
-            'estudianteNombre': student.nombre,
-            'estudianteCarnet': student.carnet,
-            'fecha': fechaHoy,
-            'estado': student.estado.name,
-            'timestamp': Timestamp.now(),
-          },
-          SetOptions(merge: true),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Asistencia guardada exitosamente en Firestore!'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
-
-      await batch.commit();
-
-      if (!mounted) return;
-
-      setState(() {
-        _recentActivities.insert(0, {
-          'nombre': 'Sesión Finalizada',
-          'accion': 'Asistencia guardada en Firestore',
-          'tiempo': 'AHORA',
-        });
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              '¡Asistencia guardada exitosamente! Puedes regresar al dashboard cuando gustes.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al guardar asistencia: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar asistencia: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -210,451 +97,405 @@ class _AttendancePageState extends State<AttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final String? userId = FirebaseAuth.instance.currentUser?.uid;
+    final DateTime now = DateTime.now();
+    final String fechaHoyKey =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-    final filteredStudents = _students.where((student) {
-      final query = _searchQuery.toLowerCase();
-      return student.nombre.toLowerCase().contains(query) ||
-          student.carnet.contains(query);
-    }).toList();
+    return Scaffold(
+      backgroundColor: bgLight,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: blueDark),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'GESTIÓN DE ASISTENCIA - ${widget.deporteNombre.toUpperCase()}',
+          style: const TextStyle(
+            color: blueDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+      body: StreamBuilder<DocumentSnapshot>(
+        // 1. STREAM DEL DEPORTE ESPECÍFICO PARA DETALLES DE SESIÓN
+        stream: FirebaseFirestore.instance
+            .collection('deportes')
+            .doc(widget.deporteId)
+            .snapshots(),
+        builder: (context, sportSnapshot) {
+          final sportData =
+              sportSnapshot.data?.data() as Map<String, dynamic>?;
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: userId != null
-          ? FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .snapshots()
-          : null,
-      builder: (context, userSnapshot) {
-        final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+          final String horarioReal = sportData?['horario'] ?? 'Por definir';
+          final String lugarReal = sportData?['lugar'] ?? 'Instalaciones UNIMET';
 
-        final String rawNombre = userData?['nombreApellido'] ??
-            userData?['nombre'] ??
-            'Entrenador';
-        final String nombreUsuario =
-            rawNombre.trim().isEmpty ? 'Entrenador' : rawNombre.trim();
+          return StreamBuilder<QuerySnapshot>(
+            // 2. STREAM DE INSCRIPCIONES FILTRADO POR ESTE DEPORTE
+            stream: FirebaseFirestore.instance
+                .collection('inscripciones')
+                .where('deporteId', isEqualTo: widget.deporteId)
+                .snapshots(),
+            builder: (context, inscripcionesSnapshot) {
+              final inscripcionesDocs =
+                  inscripcionesSnapshot.data?.docs ?? [];
 
-        return Scaffold(
-          backgroundColor: bgLight,
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildTopNavbar(nombreUsuario),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back,
-                            size: 16, color: blueDark),
-                        label: const Text(
-                          'VOLVER AL DASHBOARD',
-                          style: TextStyle(
-                            color: blueDark,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+              return StreamBuilder<QuerySnapshot>(
+                // Fallback a colección users por si los alumnos están vinculados directamente
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .snapshots(),
+                builder: (context, usersSnapshot) {
+                  List<Map<String, dynamic>> alumnosInscritos = [];
+
+                  if (inscripcionesDocs.isNotEmpty) {
+                    for (var doc in inscripcionesDocs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      alumnosInscritos.add({
+                        'id': doc.id,
+                        'nombre': data['nombreEstudiante'] ??
+                            data['nombre'] ??
+                            'Estudiante',
+                        'carnet': data['carnet'] ?? data['cedula'] ?? '20260000',
+                        'facultad': data['facultad'] ?? 'Ingeniería',
+                        'rendimiento': data['rendimiento'] ?? '90%',
+                      });
+                    }
+                  } else if (usersSnapshot.hasData) {
+                    for (var doc in usersSnapshot.data!.docs) {
+                      final uData = doc.data() as Map<String, dynamic>;
+                      final String rol = (uData['rol'] ?? uData['role'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final String depId = (uData['deporteId'] ?? '').toString();
+
+                      if ((rol.contains('estudiante') || rol.contains('atleta')) &&
+                          depId == widget.deporteId) {
+                        alumnosInscritos.add({
+                          'id': doc.id,
+                          'nombre': uData['nombreApellido'] ??
+                              uData['nombre'] ??
+                              'Estudiante',
+                          'carnet': uData['carnet'] ?? '20260000',
+                          'facultad': uData['facultad'] ?? 'UNIMET',
+                          'rendimiento': '88%',
+                        });
+                      }
+                    }
+                  }
+
+                  // Cálculo de métricas
+                  int presentes = 0;
+                  int ausentes = 0;
+                  int retrasos = 0;
+                  int pendientes = 0;
+
+                  for (var alumno in alumnosInscritos) {
+                    final status = _attendanceMap[alumno['id']] ?? 'pendiente';
+                    if (status == 'presente') presentes++;
+                    if (status == 'ausente') ausentes++;
+                    if (status == 'retraso') retrasos++;
+                    if (status == 'pendiente') pendientes++;
+                  }
+
+                  // Filtro por caja de búsqueda
+                  final alumnosFiltrados = alumnosInscritos.where((a) {
+                    final name = a['nombre'].toString().toLowerCase();
+                    final carnet = a['carnet'].toString().toLowerCase();
+                    return name.contains(_searchQuery) ||
+                        carnet.contains(_searchQuery);
+                  }).toList();
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Registra la participación de hoy en ${widget.deporteNombre}',
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.grey),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'GESTIÓN DE ASISTENCIA',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: blueDark,
+                        const SizedBox(height: 20),
+
+                        // TARJETAS KPIS
+                        Row(
+                          children: [
+                            _kpiStat('PRESENTES', presentes.toString(),
+                                Colors.green),
+                            const SizedBox(width: 16),
+                            _kpiStat(
+                                'AUSENTES', ausentes.toString(), Colors.red),
+                            const SizedBox(width: 16),
+                            _kpiStat('RETRASOS', retrasos.toString(),
+                                Colors.orange),
+                            const SizedBox(width: 16),
+                            _kpiStat('PENDIENTES', pendientes.toString(),
+                                blueDark),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Registra la participación de hoy en ${widget.deporteNombre} - Sección A',
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 28),
 
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _kpiMetricCard('PRESENTES',
-                                countPresentes.toString(), Colors.green),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _kpiMetricCard('AUSENTES',
-                                countAusentes.toString(), Colors.red),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _kpiMetricCard(
-                                'RETRASOS',
-                                countRetrasos.toString(),
-                                Colors.amber.shade800),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _kpiMetricCard('PENDIENTES',
-                                countPendientes.toString(), blueDark),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final bool isDesktop = constraints.maxWidth > 900;
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: isDesktop ? 3 : 1,
-                                child: _buildStudentTableCard(filteredStudents),
-                              ),
-                              if (isDesktop) const SizedBox(width: 24),
-                              if (isDesktop)
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final bool isDesktop = constraints.maxWidth > 900;
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // SECCIÓN IZQUIERDA: LISTA DE ESTUDIANTES
                                 Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    children: [
-                                      _buildSessionDetailsCard(),
-                                      const SizedBox(height: 20),
-                                      _buildRecentActivityCard(),
-                                    ],
+                                  flex: isDesktop ? 2 : 1,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                          color: const Color(0xFFCBD5E1)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: SizedBox(
+                                                height: 40,
+                                                child: TextField(
+                                                  onChanged: (v) {
+                                                    setState(() {
+                                                      _searchQuery =
+                                                          v.toLowerCase().trim();
+                                                    });
+                                                  },
+                                                  decoration: InputDecoration(
+                                                    hintText:
+                                                        'Buscar por nombre o carnet...',
+                                                    hintStyle: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey),
+                                                    prefixIcon: const Icon(
+                                                        Icons.search,
+                                                        size: 18,
+                                                        color: Colors.grey),
+                                                    filled: true,
+                                                    fillColor:
+                                                        const Color(0xFFF3F5F8),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(10),
+                                                      borderSide: BorderSide.none,
+                                                    ),
+                                                    contentPadding: EdgeInsets.zero,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            ElevatedButton.icon(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: orangePrimary,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    horizontal: 18,
+                                                    vertical: 14),
+                                              ),
+                                              onPressed: _isSaving
+                                                  ? null
+                                                  : () => _saveSession(
+                                                      fechaHoyKey),
+                                              icon: _isSaving
+                                                  ? const SizedBox(
+                                                      width: 14,
+                                                      height: 14,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        color: Colors.white,
+                                                        strokeWidth: 2,
+                                                      ),
+                                                    )
+                                                  : const Icon(Icons.save,
+                                                      size: 16),
+                                              label: Text(
+                                                _isSaving
+                                                    ? 'Guardando...'
+                                                    : 'Guardar Sesión',
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 20),
+
+                                        if (alumnosFiltrados.isEmpty)
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(30),
+                                            child: const Column(
+                                              children: [
+                                                Icon(
+                                                  Icons.people_outline,
+                                                  size: 40,
+                                                  color: Colors.grey,
+                                                ),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  'No hay estudiantes inscritos en esta disciplina.',
+                                                  style: TextStyle(
+                                                      color: blueDark,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 13),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else
+                                          ...alumnosFiltrados.map((alumno) {
+                                            final String id = alumno['id'];
+                                            final String status =
+                                                _attendanceMap[id] ?? 'pendiente';
+
+                                            return _studentRow(
+                                              id: id,
+                                              nombre: alumno['nombre'],
+                                              carnet: alumno['carnet'],
+                                              facultad: alumno['facultad'],
+                                              rendimiento: alumno['rendimiento'],
+                                              currentStatus: status,
+                                            );
+                                          }),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
 
-                _buildFooter(),
-              ],
-            ),
-          ),
-        );
-      },
+                                if (isDesktop) const SizedBox(width: 24),
+
+                                // SECCIÓN DERECHA: DETALLES DE LA SESIÓN REAL
+                                if (isDesktop)
+                                  Expanded(
+                                    flex: 1,
+                                    child: Column(
+                                      children: [
+                                        _buildSessionDetailsCard(
+                                          horario: horarioReal,
+                                          lugar: lugarReal,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        _buildRecentActivityCard(),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
-  // ===========================================================================
-  // BARRA SUPERIOR (NAVBAR) - LOGO AUMENTADO DE TAMAÑO (HEIGHT: 58)
-  // ===========================================================================
-  Widget _buildTopNavbar(String nombre) {
+  Widget _kpiStat(String title, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFCBD5E1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 4),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 24, fontWeight: FontWeight.w900, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _studentRow({
+    required String id,
+    required String nombre,
+    required String carnet,
+    required String facultad,
+    required String rendimiento,
+    required String currentStatus,
+  }) {
+    final initials = nombre.isNotEmpty ? nombre.substring(0, 2).toUpperCase() : 'AT';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black12),
+      ),
       child: Row(
         children: [
-          Image.asset(
-            'lib/assets/Logo.png',
-            height: 58, // Aumentado de 38 a 58
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => Row(
+          CircleAvatar(
+            backgroundColor: blueDark.withValues(alpha: 0.1),
+            child: Text(initials,
+                style: const TextStyle(
+                    color: blueDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: blueDark,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.fitness_center,
-                      color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'VirtuMet',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: blueDark,
-                  ),
-                ),
+                Text(nombre,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: blueDark)),
+                Text(carnet,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
-          const SizedBox(width: 40),
-          _navLink('Mis Disciplinas'),
-          _navLink('Nómina y Asistencia'),
-          _navLink('Anuncios'),
-          _navLink('Comunidad'),
-          const Spacer(),
-          const CircleAvatar(
-            radius: 14,
-            backgroundColor: Color(0xFFE9ECEF),
-            child: Icon(Icons.person, size: 18, color: blueDark),
+          Expanded(
+            flex: 2,
+            child: Text(facultad,
+                style: const TextStyle(fontSize: 12, color: Colors.black87)),
           ),
-          const SizedBox(width: 8),
-          Text(
-            nombre,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, color: blueDark, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _navLink(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Text(
-        title,
-        style: const TextStyle(
-            color: blueDark, fontWeight: FontWeight.w500, fontSize: 13),
-      ),
-    );
-  }
-
-  Widget _kpiMetricCard(String label, String count, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: color,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            count,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStudentTableCard(List<StudentAttendanceItem> students) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
-        ],
-      ),
-      child: Column(
-        children: [
           Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: TextField(
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por nombre o carnet...',
-                      hintStyle: const TextStyle(fontSize: 13),
-                      prefixIcon: const Icon(Icons.search, size: 18),
-                      filled: true,
-                      fillColor: const Color(0xFFF3F5F8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {},
-                icon: const Icon(Icons.filter_list, size: 16, color: blueDark),
-                label: const Text('Filtros',
-                    style: TextStyle(color: blueDark, fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {},
-                child: const Text('Exportar Reporte',
-                    style: TextStyle(color: blueDark, fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: orangePrimary,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: _isSaving ? null : _saveAttendance,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text('Guardar Sesión',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 12)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Table(
-            columnWidths: const {
-              0: FlexColumnWidth(2.5),
-              1: FlexColumnWidth(1.5),
-              2: FlexColumnWidth(1.5),
-              3: FlexColumnWidth(1.8),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
-                ),
-                children: [
-                  _tableHeader('ESTUDIANTE'),
-                  _tableHeader('FACULTAD'),
-                  _tableHeader('RENDIMIENTO'),
-                  _tableHeader('ASISTENCIA', alignRight: true),
-                ],
-              ),
-              ...students.map((student) {
-                return TableRow(
-                  decoration: const BoxDecoration(
-                    border:
-                        Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: blueDark.withValues(alpha: 0.1),
-                            child: Text(
-                              _getInitials(student.nombre),
-                              style: const TextStyle(
-                                  color: blueDark,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                student.nombre,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: blueDark),
-                              ),
-                              Text(
-                                student.carnet,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      student.facultad,
-                      style: const TextStyle(fontSize: 12, color: blueDark),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: student.rendimiento / 100,
-                              backgroundColor: Colors.grey.shade200,
-                              color: Colors.green,
-                              minHeight: 6,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${student.rendimiento}%',
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        _statusIconButton(
-                          icon: Icons.check,
-                          color: Colors.green,
-                          isSelected:
-                              student.estado == AttendanceStatus.presente,
-                          onTap: () => _updateStudentStatus(
-                              student, AttendanceStatus.presente),
-                        ),
-                        const SizedBox(width: 6),
-                        _statusIconButton(
-                          icon: Icons.close,
-                          color: Colors.red,
-                          isSelected: student.estado == AttendanceStatus.ausente,
-                          onTap: () => _updateStudentStatus(
-                              student, AttendanceStatus.ausente),
-                        ),
-                        const SizedBox(width: 6),
-                        _statusIconButton(
-                          icon: Icons.access_time_filled,
-                          color: Colors.amber.shade700,
-                          isSelected: student.estado == AttendanceStatus.retraso,
-                          onTap: () => _updateStudentStatus(
-                              student, AttendanceStatus.retraso),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }),
+              _statusButton(id, nombre, 'presente', Icons.check_circle_rounded,
+                  Colors.green, currentStatus == 'presente'),
+              const SizedBox(width: 6),
+              _statusButton(id, nombre, 'ausente', Icons.cancel_rounded,
+                  Colors.red, currentStatus == 'ausente'),
+              const SizedBox(width: 6),
+              _statusButton(id, nombre, 'retraso', Icons.watch_later_rounded,
+                  Colors.orange, currentStatus == 'retraso'),
             ],
           ),
         ],
@@ -662,113 +503,78 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _tableHeader(String text, {bool alignRight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Text(
-        text,
-        textAlign: alignRight ? TextAlign.right : TextAlign.left,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _statusIconButton({
-    required IconData icon,
-    required Color color,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
+  Widget _statusButton(String id, String name, String status, IconData icon,
+      Color color, bool isActive) {
     return InkWell(
-      onTap: onTap,
+      onTap: () => _markAttendance(id, name, status),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isSelected ? color : color.withValues(alpha: 0.1),
+          color: isActive ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: isSelected ? Colors.white : color,
-        ),
+        child: Icon(icon,
+            size: 18, color: isActive ? Colors.white : color),
       ),
     );
   }
 
-  Widget _buildSessionDetailsCard() {
+  Widget _buildSessionDetailsCard({
+    required String horario,
+    required String lugar,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
-        ],
+        border: Border.all(color: const Color(0xFFCBD5E1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Detalles de Sesión',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 14, color: blueDark),
-          ),
+          const Text('Detalles de Sesión',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 15, color: blueDark)),
           const Divider(height: 20),
-          _detailRow('Fecha', '25 de octubre de 2026'),
-          _detailRow('Horario', '14:00 - 16:00'),
-          _detailRow('Lugar', 'Cancha Techada 2'),
-          _detailRow('Estado', 'En Curso', isTag: true),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: blueDark.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'Recuerda que el cierre de sesión es automático a las 16:15. Asegúrate de guardar los cambios antes de salir.',
-              style: TextStyle(fontSize: 11, color: blueDark),
-            ),
-          ),
+          _detailItem('Fecha', _formatFechaHoy()),
+          _detailItem('Horario', horario),
+          _detailItem('Lugar', lugar),
+          _detailItem('Estado', 'En Curso', isBadge: true),
         ],
       ),
     );
   }
 
-  Widget _detailRow(String label, String value, {bool isTag = false}) {
+  Widget _detailItem(String label, String value, {bool isBadge = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          if (!isTag)
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold, color: blueDark))
-          else
+          if (isBadge)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(4),
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 value,
-                style: TextStyle(
-                    fontSize: 10,
+                style: const TextStyle(
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.green.shade800),
+                    color: Colors.green),
               ),
-            ),
+            )
+          else
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: blueDark)),
         ],
       ),
     );
@@ -780,165 +586,49 @@ class _AttendancePageState extends State<AttendancePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
-        ],
+        border: Border.all(color: const Color(0xFFCBD5E1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Actividad Reciente',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 14, color: blueDark),
-          ),
-          const SizedBox(height: 14),
-          ..._recentActivities.map(
-            (item) => _recentActivityItem(
-              item['nombre']!,
-              item['accion']!,
-              item['tiempo']!,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Ver Historial Completo >',
-            style: TextStyle(
-                color: orangePrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _recentActivityItem(String name, String action, String time) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(name,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 12, color: blueDark)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(action,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              Text(time,
-                  style: const TextStyle(
-                      fontSize: 9,
-                      color: orangePrimary,
-                      fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Divider(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
-      color: navyHeader,
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Image.asset(
-                      'lib/assets/Logo.png',
-                      height: 45, // Aumentado para mejor visibilidad en el footer
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Text(
-                        'VIRTUMET',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+          const Text('Actividad Reciente',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 15, color: blueDark)),
+          const SizedBox(height: 12),
+          if (_recentActivity.isEmpty)
+            const Text(
+              'No se han registrado marcas en esta sesión.',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            )
+          else
+            ..._recentActivity.take(4).map((act) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(act['nombre']!,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: blueDark)),
+                          Text(act['accion']!,
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.grey)),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(flex: 1),
-
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ASISTENCIA',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _footerLinkItem('Soporte'),
-                        _footerLinkItem('Preguntas Frecuentes'),
-                        _footerLinkItem('Contacto'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(flex: 1),
-            ],
-          ),
-          const SizedBox(height: 30),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 16),
-          const Text(
-            '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
-            style: TextStyle(color: Colors.white38, fontSize: 11),
-          ),
+                      Text(act['tiempo']!,
+                          style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: orangePrimary)),
+                    ],
+                  ),
+                )),
         ],
       ),
     );
-  }
-
-  Widget _footerLinkItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {},
-        child: Text(
-          text,
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
-        ),
-      ),
-    );
-  }
-
-  String _getInitials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.isNotEmpty ? name[0].toUpperCase() : 'A';
   }
 }

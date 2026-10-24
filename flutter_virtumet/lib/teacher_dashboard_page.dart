@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'attendance_page.dart';
-import 'profile_edit_page.dart';
+import 'teacher_profile_page.dart';
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -57,7 +57,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
-      return const Scaffold(body: Center(child: Text('Sesión no iniciada.')));
+      return const Scaffold(
+        body: Center(child: Text('Sesión no iniciada.')),
+      );
     }
 
     final String userId = _currentUser.uid;
@@ -73,8 +75,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
 
-        final String rawNombre =
-            userData?['nombreApellido'] ?? userData?['nombre'] ?? 'Entrenador';
+        final String rawNombre = userData?['nombreApellido'] ??
+            userData?['nombreCompleto'] ??
+            userData?['nombre'] ??
+            'Entrenador';
         final String nombreUsuario =
             rawNombre.trim().isEmpty ? 'Entrenador' : rawNombre.trim();
         final String photoUrl = userData?['photoUrl'] ?? '';
@@ -84,120 +88,165 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           body: SingleChildScrollView(
             child: Column(
               children: [
+                // 1. BARRA SUPERIOR (NAVBAR)
                 _buildTopNavbar(context, nombreUsuario, photoUrl),
 
-                _buildHeroBanner(nombreUsuario),
+                // 2. CONSULTAS EN TIEMPO REAL A FIRESTORE
+                StreamBuilder<QuerySnapshot>(
+                  // Consulta 1: Todos los usuarios para registrar estudiantes/atletas activos
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .snapshots(),
+                  builder: (context, usersSnapshot) {
+                    int totalEstudiantesConectados = 0;
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('deportes')
-                        .where('entrenadorUid', isEqualTo: userId)
-                        .snapshots(),
-                    builder: (context, sportsSnapshot) {
-                      final sportsDocs = sportsSnapshot.data?.docs ?? [];
-                      final int sesionesHoyCount = sportsDocs.length;
+                    if (usersSnapshot.hasData && usersSnapshot.data != null) {
+                      for (var doc in usersSnapshot.data!.docs) {
+                        final uData = doc.data() as Map<String, dynamic>;
+                        final String rol = (uData['rol'] ??
+                                uData['role'] ??
+                                uData['tipo'] ??
+                                '')
+                            .toString()
+                            .toLowerCase()
+                            .trim();
 
-                      return StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('inscripciones')
-                            .snapshots(),
-                        builder: (context, inscripcionesSnapshot) {
-                          final allInscripciones =
-                              inscripcionesSnapshot.data?.docs ?? [];
+                        if (rol.contains('estudiante') ||
+                            rol.contains('atleta') ||
+                            rol.contains('alumno') ||
+                            rol.contains('jugador')) {
+                          totalEstudiantesConectados++;
+                        }
+                      }
+                    }
 
-                          final sportIds =
-                              sportsDocs.map((doc) => doc.id).toSet();
-                          final myStudents = allInscripciones.where((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            return sportIds.contains(data['deporteId']);
-                          }).toList();
+                    return StreamBuilder<QuerySnapshot>(
+                      // Consulta 2: Deportes/disciplinas asignadas a este maestro
+                      stream: FirebaseFirestore.instance
+                          .collection('deportes')
+                          .snapshots(),
+                      builder: (context, sportsSnapshot) {
+                        final allSportsDocs = sportsSnapshot.data?.docs ?? [];
 
-                          final int totalAtletas =
-                              myStudents.isEmpty ? 142 : myStudents.length;
+                        // Filtra las disciplinas correspondientes al maestro conectado
+                        final mySportsDocs = allSportsDocs.where((doc) {
+                          final sData = doc.data() as Map<String, dynamic>;
+                          final String entNombre = (sData['entrenador'] ?? '')
+                              .toString()
+                              .trim()
+                              .toLowerCase();
+                          final String entUid =
+                              (sData['entrenadorUid'] ?? '').toString().trim();
 
-                          return StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('asistencias')
-                                .where('entrenadorUid', isEqualTo: userId)
-                                .snapshots(),
-                            builder: (context, asistenciasSnapshot) {
-                              final asistenciasDocs =
-                                  asistenciasSnapshot.data?.docs ?? [];
+                          return entUid == userId ||
+                              (nombreUsuario.isNotEmpty &&
+                                  entNombre == nombreUsuario.toLowerCase());
+                        }).toList();
 
-                              final Set<String> completedSportIds = {};
+                        final int sesionesCount = mySportsDocs.length;
 
-                              for (var doc in asistenciasDocs) {
-                                final data =
-                                    doc.data() as Map<String, dynamic>;
-                                if (data['fecha'] == fechaHoy &&
-                                    data['deporteId'] != null) {
-                                  completedSportIds
-                                      .add(data['deporteId'].toString());
-                                }
+                        // Conteo dinámico de alumnos inscritos en las disciplinas del profesor
+                        int atletasEnMisDeportes = 0;
+                        for (var sDoc in mySportsDocs) {
+                          final sData = sDoc.data() as Map<String, dynamic>;
+                          atletasEnMisDeportes +=
+                              (sData['cuposInscritos'] ?? 0) as int;
+                        }
+
+                        final int totalAtletasMostrar = atletasEnMisDeportes > 0
+                            ? atletasEnMisDeportes
+                            : totalEstudiantesConectados;
+
+                        return StreamBuilder<QuerySnapshot>(
+                          // Consulta 3: Asistencias registradas hoy
+                          stream: FirebaseFirestore.instance
+                              .collection('asistencias')
+                              .snapshots(),
+                          builder: (context, asistenciasSnapshot) {
+                            final asistenciasDocs =
+                                asistenciasSnapshot.data?.docs ?? [];
+                            final Set<String> completedSportIds = {};
+
+                            for (var doc in asistenciasDocs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              if (data['fecha'] == fechaHoy &&
+                                  data['deporteId'] != null) {
+                                completedSportIds
+                                    .add(data['deporteId'].toString());
                               }
+                            }
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildKpiGrid(
-                                    totalAtletas: totalAtletas,
-                                    sesionesHoy: sesionesHoyCount == 0
-                                        ? 3
-                                        : sesionesHoyCount,
-                                  ),
-                                  const SizedBox(height: 32),
+                            return Column(
+                              children: [
+                                // HERO BANNER DINÁMICO
+                                _buildHeroBanner(nombreUsuario, sesionesCount),
 
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final bool isDesktop =
-                                          constraints.maxWidth > 900;
-                                      return Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            flex: isDesktop ? 2 : 1,
-                                            child: Column(
-                                              children: [
-                                                _buildSessionsList(
-                                                  sportsDocs,
-                                                  completedSportIds,
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 50, vertical: 30),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // MÉTRICAS / KPIS EN TIEMPO REAL
+                                      _buildKpiGrid(
+                                        totalAtletas: totalAtletasMostrar,
+                                        sesionesHoy: sesionesCount,
+                                      ),
+                                      const SizedBox(height: 32),
+
+                                      // DISPOSICIÓN PRINCIPAL DE PANTALLA
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final bool isDesktop =
+                                              constraints.maxWidth > 900;
+                                          return Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                flex: isDesktop ? 2 : 1,
+                                                child: Column(
+                                                  children: [
+                                                    _buildSessionsList(
+                                                      mySportsDocs,
+                                                      completedSportIds,
+                                                    ),
+                                                  ],
                                                 ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (isDesktop)
-                                            const SizedBox(width: 28),
-
-                                          if (isDesktop)
-                                            Expanded(
-                                              flex: 1,
-                                              child: Column(
-                                                children: [
-                                                  _buildCriticalAlertsCard(),
-                                                  const SizedBox(height: 24),
-                                                  _buildUpcomingEventsCard(),
-                                                  const SizedBox(height: 24),
-                                                  _buildWeeklyPerformanceCard(),
-                                                ],
                                               ),
-                                            ),
-                                        ],
-                                      );
-                                    },
+                                              if (isDesktop)
+                                                const SizedBox(width: 28),
+                                              if (isDesktop)
+                                                Expanded(
+                                                  flex: 1,
+                                                  child: Column(
+                                                    children: [
+                                                      _buildCriticalAlertsCard(),
+                                                      const SizedBox(height: 24),
+                                                      _buildUpcomingEventsCard(),
+                                                      const SizedBox(height: 24),
+                                                      _buildWeeklyPerformanceCard(),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
                 ),
 
+                // 3. PIE DE PÁGINA
                 _buildFooter(),
               ],
             ),
@@ -208,9 +257,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   // ===========================================================================
-  // BARRA SUPERIOR (NAVBAR) CON FOTO DINÁMICA
+  // 1. BARRA SUPERIOR (NAVBAR)
   // ===========================================================================
-
   Widget _buildTopNavbar(
       BuildContext context, String nombre, String photoUrl) {
     return Container(
@@ -222,27 +270,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             'lib/assets/Logo.png',
             height: 58,
             fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: blueDark,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.fitness_center,
-                      color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'VirtuMet',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: blueDark,
-                  ),
-                ),
-              ],
+            errorBuilder: (_, _, _) => const Text(
+              'VirtuMet',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: blueDark,
+              ),
             ),
           ),
           const SizedBox(width: 40),
@@ -253,14 +287,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const Spacer(),
           Row(
             children: [
-              // ÁREA DE PERFIL CLICABLE HACIA EDICIÓN DE PERFIL
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ProfileEditPage(),
+                      builder: (_) => const TeacherProfilePage(),
                     ),
                   );
                 },
@@ -269,7 +302,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: Row(
                     children: [
-                      // CÍRCULO CON LA FOTO MOSTRADA DINÁMICAMENTE
                       Container(
                         width: 32,
                         height: 32,
@@ -332,7 +364,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildHeroBanner(String nombre) {
+  // ===========================================================================
+  // 2. HERO BANNER REACTIVO CON CONTEO REAL DE SESIONES
+  // ===========================================================================
+  Widget _buildHeroBanner(String nombre, int sesionesCount) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 48),
@@ -372,33 +407,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           Text(
             '¡HOLA DE NUEVO, ${nombre.toUpperCase()}!',
             style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 0.5,
-                shadows: [
-                  Shadow(
-                    offset: Offset(0, 2),
-                    blurRadius: 6.0,
-                    color: Colors.black45,
-                  ),
-                ]),
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Tienes 3 sesiones programadas para hoy. Revisa el listado de atletas e ingresa a registrar sus asistencias.',
-            style: TextStyle(
+          Text(
+            'Tienes $sesionesCount ${sesionesCount == 1 ? 'sesión programada' : 'sesiones programadas'} para hoy en el sistema. Revisa el listado de atletas e ingresa a registrar sus asistencias.',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
               height: 1.4,
               fontWeight: FontWeight.w500,
-              shadows: [
-                Shadow(
-                  offset: Offset(0, 1),
-                  blurRadius: 4.0,
-                  color: Colors.black45,
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -412,7 +434,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
-                  elevation: 2,
                 ),
                 onPressed: () {},
                 icon: const Icon(Icons.people_alt_rounded, size: 20),
@@ -443,6 +464,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  // ===========================================================================
+  // 3. MÉTRICAS KPIS EN TIEMPO REAL
+  // ===========================================================================
   Widget _buildKpiGrid({required int totalAtletas, required int sesionesHoy}) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -454,7 +478,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             Icons.groups_outlined,
             'TOTAL ATLETAS',
             totalAtletas.toString(),
-            '+12%',
+            'EN VIVO',
             Colors.green,
             accentColor: orangePrimary,
           ),
@@ -462,8 +486,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             Icons.calendar_today_outlined,
             'SESIONES HOY',
             sesionesHoy.toString().padLeft(2, '0'),
-            null,
-            null,
+            'EN VIVO',
+            Colors.green,
             accentColor: blueDark,
           ),
           _kpiCard(
@@ -547,41 +571,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  // ===========================================================================
+  // 4. LISTA DE SESIONES / DISCIPLINAS OBTENIDAS DE FIRESTORE
+  // ===========================================================================
   Widget _buildSessionsList(
       List<QueryDocumentSnapshot> sportsDocs, Set<String> completedSportIds) {
-    final defaultSessions = [
-      {
-        'id': 'deporte_1',
-        'nombre': 'Fútbol Sala Varonil',
-        'horario': '14:00 - 16:00',
-        'lugar': 'Cancha Techada 1',
-        'inscritos': 22,
-        'badgeText': 'EN CURSO',
-      },
-      {
-        'id': 'deporte_2',
-        'nombre': 'Entrenamiento Funcional',
-        'horario': '16:30 - 17:30',
-        'lugar': 'Gimnasio UNIMET',
-        'inscritos': 15,
-        'badgeText': null,
-      },
-      {
-        'id': 'deporte_3',
-        'nombre': 'Baloncesto Varonil',
-        'horario': '18:00 - 20:00',
-        'lugar': 'Cancha Techada 2',
-        'inscritos': 18,
-        'badgeText': null,
-      },
-    ];
-
-    final filteredDefaults = defaultSessions.where((s) {
-      final name = s['nombre'].toString().toLowerCase();
-      final location = s['lugar'].toString().toLowerCase();
-      return name.contains(_searchQuery) || location.contains(_searchQuery);
-    }).toList();
-
     final filteredSportsDocs = sportsDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final name = (data['nombre'] ?? '').toString().toLowerCase();
@@ -611,13 +605,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sesiones de Hoy',
+                  Text('Sesiones Asignadas',
                       style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: blueDark)),
                   SizedBox(height: 2),
-                  Text('Viernes, 25 de Octubre',
+                  Text('Disciplinas asignadas en el sistema',
                       style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
@@ -649,57 +643,42 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           ),
           const SizedBox(height: 24),
 
-          if (sportsDocs.isEmpty) ...[
-            if (filteredDefaults.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Center(
-                  child: Text(
-                    'No se encontraron grupos con esa búsqueda.',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+          if (filteredSportsDocs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: bgLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.sports_outlined, size: 40, color: Colors.grey),
+                  SizedBox(height: 10),
+                  Text(
+                    'No tienes disciplinas ni sesiones asignadas en la base de datos.',
+                    style: TextStyle(
+                        color: blueDark,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14),
                   ),
-                ),
-              )
-            else
-              ...filteredDefaults.map((item) {
-                final String id = item['id'] as String;
-                final String nombre = item['nombre'] as String;
-                final String horario = item['horario'] as String;
-                final String lugar = item['lugar'] as String;
-                final int inscritos = item['inscritos'] as int;
-                final String? badgeText = item['badgeText'] as String?;
-                final bool isCompleted = completedSportIds.contains(id);
+                ],
+              ),
+            )
+          else
+            ...filteredSportsDocs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final String deporteId = doc.id;
+              final String nombre = data['nombre'] ?? 'Deporte';
+              final String horario = data['horario'] ?? 'Por definir';
+              final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
+              final int inscritos = (data['cuposInscritos'] ?? 0) as int;
 
-                return _sessionCard(id, nombre, horario, lugar, inscritos,
-                    badgeText, isCompleted);
-              }),
-          ] else ...[
-            if (filteredSportsDocs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Center(
-                  child: Text(
-                    'No se encontraron grupos con esa búsqueda.',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ),
-              )
-            else
-              ...filteredSportsDocs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final String deporteId = doc.id;
-                final String nombre = data['nombre'] ?? 'Deporte';
-                final String horario = data['horario'] ?? '14:00 - 16:00';
-                final String lugar = data['lugar'] ?? 'Cancha Techada 1';
-                final int cupo = data['cupoMaximo'] ?? 20;
+              final bool isCompleted = completedSportIds.contains(deporteId);
 
-                final bool isCompleted =
-                    completedSportIds.contains(deporteId);
-
-                return _sessionCard(deporteId, nombre, horario, lugar, cupo,
-                    null, isCompleted);
-              }),
-          ],
+              return _sessionCard(
+                  deporteId, nombre, horario, lugar, inscritos, null, isCompleted);
+            }),
         ],
       ),
     );
@@ -730,33 +709,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(nombre,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: blueDark)),
-                    if (badgeText != null) ...[
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: orangePrimary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: orangePrimary),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                Text(nombre,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: blueDark)),
                 const SizedBox(height: 6),
                 RichText(
                   text: TextSpan(
@@ -776,70 +733,40 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               ],
             ),
           ),
-          if (isCompleted)
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCompleted ? Colors.green : orangePrimary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AttendancePage(
-                      deporteId: id,
-                      deporteNombre: nombre,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.assignment_turned_in_outlined,
-                  size: 18, color: blueDark),
-              label: const Text(
-                'PASAR ASISTENCIA',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: blueDark,
-                ),
-              ),
-            )
-          else
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: orangePrimary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AttendancePage(
-                      deporteId: id,
-                      deporteNombre: nombre,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('PASAR ASISTENCIA',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AttendancePage(
+                    deporteId: id,
+                    deporteNombre: nombre,
+                  ),
+                ),
+              );
+            },
+            child: Text(
+              isCompleted ? 'ASISTENCIA REGISTRADA' : 'PASAR ASISTENCIA',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
   }
 
+  // ===========================================================================
+  // 5. CARDS LATERALES
+  // ===========================================================================
   Widget _buildCriticalAlertsCard() {
     return Container(
       padding: const EdgeInsets.all(22),
