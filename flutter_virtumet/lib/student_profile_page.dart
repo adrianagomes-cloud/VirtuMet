@@ -26,6 +26,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
   bool _isInitialized = false;
   bool _isSaving = false;
+  String _fotoUrl = '';
 
   @override
   void initState() {
@@ -50,10 +51,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   }
 
   // ===========================================================================
-  // MODAL DE SELECCIÓN DE AVATAR Y FOTO DE PERFIL
+  // MODAL PARA CAMBIAR FOTO DE PERFIL DE ESTUDIANTE
   // ===========================================================================
-  void _showChangeProfilePictureDialog(
-      BuildContext context, String currentUrl, String docId) {
+  void _showChangeProfilePictureDialog(BuildContext context, String currentUrl) {
     final urlCtrl = TextEditingController(text: currentUrl);
     String selectedAvatar = currentUrl;
 
@@ -79,11 +79,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=300&q=80',
       },
       {
-        'label': 'Fitness',
-        'url':
-            'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=300&q=80',
-      },
-      {
         'label': 'Estudiante 1',
         'url':
             'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -92,11 +87,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         'label': 'Estudiante 2',
         'url':
             'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        'label': 'Estudiante 3',
-        'url':
-            'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
       },
     ];
 
@@ -148,11 +138,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 12),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide:
                                 const BorderSide(color: Color(0xFFCBD5E1)),
@@ -223,19 +208,28 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
                   ),
                   onPressed: () async {
                     final String finalUrl = urlCtrl.text.trim().isEmpty
                         ? selectedAvatar
                         : urlCtrl.text.trim();
 
-                    if (docId.isNotEmpty && docId != 'temp_id') {
+                    setState(() => _fotoUrl = finalUrl);
+
+                    final uid = _currentUser?.uid;
+                    if (uid != null && uid.isNotEmpty) {
+                      try {
+                        await _currentUser?.updatePhotoURL(finalUrl);
+                      } catch (_) {}
+
                       await FirebaseFirestore.instance
                           .collection('users')
-                          .doc(docId)
-                          .update({'fotoUrl': finalUrl, 'photoUrl': finalUrl});
+                          .doc(uid)
+                          .set({
+                        'fotoUrl': finalUrl,
+                        'photoUrl': finalUrl,
+                        'actualizadoEn': FieldValue.serverTimestamp(),
+                      }, SetOptions(merge: true));
                     }
 
                     if (ctx.mounted) Navigator.pop(ctx);
@@ -252,25 +246,47 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   }
 
   // ===========================================================================
-  // GUARDAR DATOS EN FIRESTORE EN TIEMPO REAL
+  // GUARDAR DATOS VINCULADOS ÚNICAMENTE AL UID DEL ESTUDIANTE
   // ===========================================================================
-  Future<void> _saveProfileData(String docId) async {
+  Future<void> _saveProfileData() async {
+    final uid = _currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
     setState(() => _isSaving = true);
     try {
       final String nuevoNombre = _nombreCtrl.text.trim();
+      final String correoEstudiante = _currentUser?.email ?? '';
 
-      if (docId.isNotEmpty && docId != 'temp_id') {
-        await FirebaseFirestore.instance.collection('users').doc(docId).update({
-          'nombre': nuevoNombre,
-          'nombreApellido': nuevoNombre,
-          'nombreCompleto': nuevoNombre,
-          'telefono': _telefonoCtrl.text.trim(),
-          'carrera': _carreraCtrl.text.trim(),
-          'carnet': _carnetCtrl.text.trim(),
-          'biografia': _biografiaCtrl.text.trim(),
-          'actualizadoEn': FieldValue.serverTimestamp(),
-        });
+      try {
+        await _currentUser?.updateDisplayName(nuevoNombre);
+        if (_fotoUrl.isNotEmpty) {
+          await _currentUser?.updatePhotoURL(_fotoUrl);
+        }
+      } catch (_) {}
+
+      final Map<String, dynamic> updateData = {
+        'nombre': nuevoNombre,
+        'nombreApellido': nuevoNombre,
+        'nombreCompleto': nuevoNombre,
+        'telefono': _telefonoCtrl.text.trim(),
+        'carrera': _carreraCtrl.text.trim(),
+        'carnet': _carnetCtrl.text.trim(),
+        'biografia': _biografiaCtrl.text.trim(),
+        'correo': correoEstudiante,
+        'email': correoEstudiante,
+        'rol': 'Estudiante',
+        'actualizadoEn': FieldValue.serverTimestamp(),
+      };
+
+      if (_fotoUrl.isNotEmpty) {
+        updateData['fotoUrl'] = _fotoUrl;
+        updateData['photoUrl'] = _fotoUrl;
       }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(updateData, SetOptions(merge: true));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -295,10 +311,17 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final String uid = _currentUser?.uid ?? '';
     final String authEmail = _currentUser?.email ?? '';
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+    return StreamBuilder<DocumentSnapshot>(
+      // LECTURA DIRECTA POR EL UID DEL ESTUDIANTE CONECTADO
+      stream: uid.isNotEmpty
+          ? FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .snapshots()
+          : const Stream.empty(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !_isInitialized) {
@@ -309,31 +332,11 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           );
         }
 
-        DocumentSnapshot? userDoc;
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final docs = snapshot.data!.docs;
-          final matches = docs.where((doc) {
-            final d = doc.data() as Map<String, dynamic>;
-            final String docEmail =
-                (d['correo'] ?? d['email'] ?? '').toString().toLowerCase();
-            
-            // CORRECCIÓN: Filtro estricto para asegurar que sea estudiante
-            final String rol = (d['rol'] ?? d['role'] ?? '').toString().toLowerCase();
-            final bool esEstudiante = rol.isEmpty || rol == 'estudiante' || rol == 'student' || rol == 'atleta';
-
-            return (doc.id == _currentUser?.uid ||
-                (authEmail.isNotEmpty && docEmail == authEmail.toLowerCase())) && esEstudiante;
-          });
-
-          if (matches.isNotEmpty) {
-            userDoc = matches.first;
-          }
-        }
-
         final Map<String, dynamic> data =
-            userDoc != null ? (userDoc.data() as Map<String, dynamic>) : {};
+            (snapshot.hasData && snapshot.data!.data() != null)
+                ? (snapshot.data!.data() as Map<String, dynamic>)
+                : {};
 
-        // 1. OBTENER NOMBRE REAL REGISTRADO EN FIREBASE
         final String nombreRegistrado = (data['nombreApellido'] ??
                 data['nombreCompleto'] ??
                 data['nombre'] ??
@@ -342,33 +345,19 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             .toString()
             .trim();
 
-        // 2. OBTENER CORREO REAL DEL ESTUDIANTE LOGUEADO
-        final String correoReal = (data['correo'] ??
-                data['email'] ??
-                _currentUser?.email ??
-                '')
-            .toString()
-            .trim();
-
-        final String fotoUrl = (data['fotoUrl'] ??
-                data['photoUrl'] ??
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80')
-            .toString();
-
-        final String carrera =
-            (data['carrera'] ?? 'Ingeniería de Sistemas · UNIMET').toString();
-
-        final String docId = userDoc?.id ?? _currentUser?.uid ?? 'temp_id';
-
-        // INICIALIZACIÓN ÚNICA DE CONTROLADORES
         if (!_isInitialized) {
           _nombreCtrl.text = nombreRegistrado;
-          _correoCtrl.text = correoReal;
+          _correoCtrl.text = authEmail;
           _telefonoCtrl.text = (data['telefono'] ?? '').toString();
-          _carreraCtrl.text = carrera;
+          _carreraCtrl.text =
+              (data['carrera'] ?? 'Ingeniería de Sistemas · UNIMET').toString();
           _carnetCtrl.text = (data['carnet'] ?? '').toString();
-          // LA BIOGRAFÍA INICIA VACÍA PARA PODER ESCRIBIR DIRECTAMENTE
           _biografiaCtrl.text = (data['biografia'] ?? '').toString();
+          _fotoUrl = (data['fotoUrl'] ??
+                  data['photoUrl'] ??
+                  _currentUser?.photoURL ??
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80')
+              .toString();
           _isInitialized = true;
         }
 
@@ -388,7 +377,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    elevation: 1,
                   ),
                   onPressed: () {
                     if (Navigator.canPop(context)) {
@@ -434,7 +422,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                               CircleAvatar(
                                 radius: 65,
                                 backgroundColor: blueDark,
-                                backgroundImage: NetworkImage(fotoUrl),
+                                backgroundImage: NetworkImage(_fotoUrl),
                               ),
                               Container(
                                 padding: const EdgeInsets.all(6),
@@ -449,7 +437,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            nombreRegistrado,
+                            _nombreCtrl.text.isNotEmpty
+                                ? _nombreCtrl.text
+                                : nombreRegistrado,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 20,
@@ -459,7 +449,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            carrera,
+                            _carreraCtrl.text.isNotEmpty
+                                ? _carreraCtrl.text
+                                : 'Ingeniería de Sistemas · UNIMET',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey),
@@ -501,7 +493,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                   horizontal: 16, vertical: 12),
                             ),
                             onPressed: () => _showChangeProfilePictureDialog(
-                                context, fotoUrl, docId),
+                                context, _fotoUrl),
                             icon: const Icon(Icons.upload,
                                 size: 16, color: blueDark),
                             label: const Text(
@@ -518,7 +510,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
                     const SizedBox(width: 30),
 
-                    // FORMULARIO DE INFORMACIÓN PERSONAL
+                    // FORMULARIO DE DATOS
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(28),
@@ -572,6 +564,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                     label: 'Nombre completo *',
                                     controller: _nombreCtrl,
                                     hint: 'Nombre y Apellido',
+                                    onChanged: (val) => setState(() {}),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -581,7 +574,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                     controller: _correoCtrl,
                                     hint: 'estudiante@correo.unimet.edu.ve',
                                     readOnly: true,
-                                    helper: 'Email verificado del estudiante registrado.',
+                                    helper:
+                                        'Email verificado del estudiante registrado.',
                                   ),
                                 ),
                               ],
@@ -613,13 +607,15 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                               label: 'Carrera / Escuela',
                               controller: _carreraCtrl,
                               hint: 'Ingeniería de Sistemas',
+                              onChanged: (val) => setState(() {}),
                             ),
                             const SizedBox(height: 16),
 
                             _buildFormField(
                               label: 'Biografía Deportiva / Intereses',
                               controller: _biografiaCtrl,
-                              hint: 'Escribe aquí tu experiencia deportiva o intereses...',
+                              hint:
+                                  'Escribe aquí tu experiencia deportiva o intereses...',
                               maxLines: 3,
                             ),
                             const SizedBox(height: 24),
@@ -636,9 +632,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                onPressed: _isSaving
-                                    ? null
-                                    : () => _saveProfileData(docId),
+                                onPressed: _isSaving ? null : _saveProfileData,
                                 icon: _isSaving
                                     ? const SizedBox(
                                         width: 16,
@@ -680,6 +674,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     bool readOnly = false,
     String? helper,
     int maxLines = 1,
+    ValueChanged<String>? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,6 +692,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           controller: controller,
           readOnly: readOnly,
           maxLines: maxLines,
+          onChanged: onChanged,
           style: TextStyle(
             fontSize: 13,
             color: readOnly ? Colors.black54 : blueDark,

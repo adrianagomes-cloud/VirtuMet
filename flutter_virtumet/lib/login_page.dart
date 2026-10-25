@@ -40,7 +40,10 @@ class _LoginPageState extends State<LoginPage> {
     final String inputEmail = _emailController.text.trim();
 
     try {
-      // 1. Iniciar sesión en Firebase Auth
+      // 1. Configurar persistencia a nivel de PESTAÑA para evitar cruce de sesiones
+      await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
+
+      // 2. Iniciar sesión en Firebase Auth
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
         email: inputEmail,
@@ -49,7 +52,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final String uid = userCredential.user!.uid;
 
-      // 2. Si el correo coincide con el admin privado, entra directo al Panel Admin
+      // 3. Si el correo coincide con el admin privado, entra directo al Panel Admin
       if (inputEmail == adminEmail) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // 3. Para otros usuarios, consultar rol en Firestore
+      // 4. Para otros usuarios, consultar su documento por UID en Firestore
       final DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -79,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
         final Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
         final String rol = data['rol'] ?? 'Estudiante';
 
-        // Redirección según rol
+        // Redirección según rol registrado
         if (rol == 'Admin') {
           Navigator.pushAndRemoveUntil(
             context,

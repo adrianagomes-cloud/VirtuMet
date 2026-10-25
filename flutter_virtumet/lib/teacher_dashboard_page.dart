@@ -16,7 +16,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
   String _searchQuery = '';
 
-  // Colores corporativos de VirtuMet
   static const Color orangePrimary = Color(0xFFFF5500);
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color navyHeader = Color(0xFF0A192F);
@@ -62,12 +61,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       );
     }
 
-    final String userId = _currentUser.uid;
+    final String userId = _currentUser!.uid;
     final DateTime now = DateTime.now();
     final String fechaHoy =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
     return StreamBuilder<DocumentSnapshot>(
+      // LECTURA AISLADA EXCLUSIVAMENTE DEL DOCUMENTO DEL PROFESOR LOGUEADO
       stream: FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -78,22 +78,23 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         final String rawNombre = userData?['nombreApellido'] ??
             userData?['nombreCompleto'] ??
             userData?['nombre'] ??
+            _currentUser?.displayName ??
             'Entrenador';
         final String nombreUsuario =
             rawNombre.trim().isEmpty ? 'Entrenador' : rawNombre.trim();
-        final String photoUrl = userData?['photoUrl'] ?? '';
+        final String photoUrl = userData?['fotoUrl'] ??
+            userData?['photoUrl'] ??
+            _currentUser?.photoURL ??
+            '';
 
         return Scaffold(
           backgroundColor: bgLight,
           body: SingleChildScrollView(
             child: Column(
               children: [
-                // 1. BARRA SUPERIOR (NAVBAR)
                 _buildTopNavbar(context, nombreUsuario, photoUrl),
 
-                // 2. CONSULTAS EN TIEMPO REAL A FIRESTORE
                 StreamBuilder<QuerySnapshot>(
-                  // Consulta 1: Todos los usuarios para registrar estudiantes/atletas activos
                   stream: FirebaseFirestore.instance
                       .collection('users')
                       .snapshots(),
@@ -121,14 +122,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     }
 
                     return StreamBuilder<QuerySnapshot>(
-                      // Consulta 2: Deportes/disciplinas asignadas a este maestro
                       stream: FirebaseFirestore.instance
                           .collection('deportes')
                           .snapshots(),
                       builder: (context, sportsSnapshot) {
                         final allSportsDocs = sportsSnapshot.data?.docs ?? [];
 
-                        // Filtra las disciplinas correspondientes al maestro conectado
                         final mySportsDocs = allSportsDocs.where((doc) {
                           final sData = doc.data() as Map<String, dynamic>;
                           final String entNombre = (sData['entrenador'] ?? '')
@@ -145,7 +144,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
                         final int sesionesCount = mySportsDocs.length;
 
-                        // Conteo dinámico de alumnos inscritos en las disciplinas del profesor
                         int atletasEnMisDeportes = 0;
                         for (var sDoc in mySportsDocs) {
                           final sData = sDoc.data() as Map<String, dynamic>;
@@ -158,7 +156,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                             : totalEstudiantesConectados;
 
                         return StreamBuilder<QuerySnapshot>(
-                          // Consulta 3: Asistencias registradas hoy
                           stream: FirebaseFirestore.instance
                               .collection('asistencias')
                               .snapshots(),
@@ -178,7 +175,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
                             return Column(
                               children: [
-                                // HERO BANNER DINÁMICO
                                 _buildHeroBanner(nombreUsuario, sesionesCount),
 
                                 Padding(
@@ -188,14 +184,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      // MÉTRICAS / KPIS EN TIEMPO REAL
                                       _buildKpiGrid(
                                         totalAtletas: totalAtletasMostrar,
                                         sesionesHoy: sesionesCount,
                                       ),
                                       const SizedBox(height: 32),
 
-                                      // DISPOSICIÓN PRINCIPAL DE PANTALLA
                                       LayoutBuilder(
                                         builder: (context, constraints) {
                                           final bool isDesktop =
@@ -246,7 +240,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   },
                 ),
 
-                // 3. PIE DE PÁGINA
                 _buildFooter(),
               ],
             ),
@@ -256,9 +249,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 1. BARRA SUPERIOR (NAVBAR)
-  // ===========================================================================
   Widget _buildTopNavbar(
       BuildContext context, String nombre, String photoUrl) {
     return Container(
@@ -364,9 +354,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 2. HERO BANNER REACTIVO CON CONTEO REAL DE SESIONES
-  // ===========================================================================
   Widget _buildHeroBanner(String nombre, int sesionesCount) {
     return Container(
       width: double.infinity,
@@ -415,7 +402,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tienes $sesionesCount ${sesionesCount == 1 ? 'sesión programada' : 'sesiones programadas'} para hoy en el sistema. Revisa el listado de atletas e ingresa a registrar sus asistencias.',
+            'Tienes $sesionesCount ${sesionesCount == 1 ? 'sesión programada' : 'sesiones programadas'} para hoy en el sistema.',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -423,50 +410,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: orangePrimary,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {},
-                icon: const Icon(Icons.people_alt_rounded, size: 20),
-                label: const Text('Ver Nómina de Atletas →',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-              const SizedBox(width: 14),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white, width: 1.5),
-                  backgroundColor: Colors.black26,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {},
-                child: const Text('Ver Horario Completo',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  // ===========================================================================
-  // 3. MÉTRICAS KPIS EN TIEMPO REAL
-  // ===========================================================================
   Widget _buildKpiGrid({required int totalAtletas, required int sesionesHoy}) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -571,9 +519,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 4. LISTA DE SESIONES / DISCIPLINAS OBTENIDAS DE FIRESTORE
-  // ===========================================================================
   Widget _buildSessionsList(
       List<QueryDocumentSnapshot> sportsDocs, Set<String> completedSportIds) {
     final filteredSportsDocs = sportsDocs.where((doc) {
@@ -589,12 +534,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,7 +616,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               final bool isCompleted = completedSportIds.contains(deporteId);
 
               return _sessionCard(
-                  deporteId, nombre, horario, lugar, inscritos, null, isCompleted);
+                  deporteId, nombre, horario, lugar, inscritos, isCompleted);
             }),
         ],
       ),
@@ -685,7 +624,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _sessionCard(String id, String nombre, String horario, String lugar,
-      int inscritos, String? badgeText, bool isCompleted) {
+      int inscritos, bool isCompleted) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
@@ -764,9 +703,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 5. CARDS LATERALES
-  // ===========================================================================
   Widget _buildCriticalAlertsCard() {
     return Container(
       padding: const EdgeInsets.all(22),
@@ -792,12 +728,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const SizedBox(height: 16),
           _alertItem('Solicitud de cambio de horario: Voleibol'),
           _alertItem('Mantenimiento Cancha 1: Mañana 08:00'),
-          const SizedBox(height: 14),
-          const Text('VER TODAS LAS ALERTAS >',
-              style: TextStyle(
-                  color: orangePrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -830,12 +760,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,17 +767,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const Text('PRÓXIMOS EVENTOS',
               style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 14, color: blueDark)),
-          const SizedBox(height: 2),
-          const Text('Calendario Institucional',
-              style: TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 16),
           _eventItem('Torneo Inter-Facultades', 'OCT 28', Colors.green),
           _eventItem('Cierre de Inscripciones', 'NOV 02', orangePrimary),
-          _eventItem('Exhibición de Natación', 'NOV 05', Colors.blue),
-          const SizedBox(height: 14),
-          const Text('VER CALENDARIO COMPLETO',
-              style: TextStyle(
-                  color: blueDark, fontSize: 11, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -893,35 +809,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         color: navyHeader,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('RENDIMIENTO SEMANAL',
+          Text('RENDIMIENTO SEMANAL',
               style: TextStyle(
                   color: Colors.white70,
                   fontSize: 11,
                   fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Row(
-            children: [
-              Text('92%',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900)),
-              SizedBox(width: 8),
-              Text('Meta alcanzada',
-                  style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Has completado 12 de las 13 sesiones programadas esta semana. ¡Excelente ritmo!',
-            style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
-          ),
+          SizedBox(height: 8),
+          Text('92%',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -929,90 +830,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 50),
-      color: navyHeader,
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Image.asset(
-                      'lib/assets/Logo.png',
-                      height: 38,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Text(
-                        'VIRTUMET',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
-                      style: TextStyle(
-                          color: Colors.white60, fontSize: 12, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 1),
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ASISTENCIA',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _footerLinkItem('Soporte'),
-                        _footerLinkItem('Preguntas Frecuentes'),
-                        _footerLinkItem('Contacto'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 1),
-            ],
-          ),
-          const SizedBox(height: 30),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 16),
-          const Text(
-            '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
-            style: TextStyle(color: Colors.white38, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _footerLinkItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {},
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: const Center(
         child: Text(
-          text,
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
+          '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
+          style: TextStyle(color: Colors.grey, fontSize: 11),
         ),
       ),
     );

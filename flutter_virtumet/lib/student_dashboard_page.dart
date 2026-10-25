@@ -76,44 +76,40 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     final String authUid = _currentUser?.uid ?? '';
     final String authEmail = (_currentUser?.email ?? '').toLowerCase();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+    return StreamBuilder<DocumentSnapshot>(
+      // OBTIENE ÚNICA Y EXCLUSIVAMENTE LOS DATOS DEL ESTUDIANTE LOGUEADO POR SU UID
+      stream: authUid.isNotEmpty
+          ? FirebaseFirestore.instance
+              .collection('users')
+              .doc(authUid)
+              .snapshots()
+          : const Stream.empty(),
       builder: (context, userSnapshot) {
-        String nombreEstudiante = 'Estudiante UNIMET';
-        String fotoUrl = '';
-        String userDocEmail = authEmail;
+        String nombreEstudiante = _currentUser?.displayName ?? 'Estudiante UNIMET';
+        String fotoUrl = _currentUser?.photoURL ?? '';
 
-        if (userSnapshot.hasData && userSnapshot.data!.docs.isNotEmpty) {
-          final docs = userSnapshot.data!.docs;
-          final matches = docs.where((doc) {
-            final d = doc.data() as Map<String, dynamic>;
-            final String docEmail =
-                (d['correo'] ?? d['email'] ?? '').toString().toLowerCase();
-            return doc.id == authUid ||
-                (authEmail.isNotEmpty && docEmail == authEmail);
-          });
-
-          if (matches.isNotEmpty) {
-            final data = matches.first.data() as Map<String, dynamic>;
-            nombreEstudiante = (data['nombreApellido'] ??
-                    data['nombreCompleto'] ??
-                    data['nombre'] ??
-                    _currentUser?.displayName ??
-                    'Estudiante UNIMET')
-                .toString()
-                .trim();
-            fotoUrl =
-                (data['fotoUrl'] ?? data['photoUrl'] ?? '').toString().trim();
-            userDocEmail =
-                (data['correo'] ?? data['email'] ?? authEmail).toString().toLowerCase();
-          }
+        if (userSnapshot.hasData && userSnapshot.data!.data() != null) {
+          final data = userSnapshot.data!.data() as Map<String, dynamic>;
+          nombreEstudiante = (data['nombreApellido'] ??
+                  data['nombreCompleto'] ??
+                  data['nombre'] ??
+                  _currentUser?.displayName ??
+                  'Estudiante UNIMET')
+              .toString()
+              .trim();
+          fotoUrl = (data['fotoUrl'] ??
+                  data['photoUrl'] ??
+                  _currentUser?.photoURL ??
+                  '')
+              .toString()
+              .trim();
         }
 
         final String primerNombre = nombreEstudiante.isNotEmpty
             ? nombreEstudiante.split(' ').first.toUpperCase()
             : 'ESTUDIANTE';
 
-        // ESCUCHA EN TIEMPO REAL DE LA COLECCIÓN 'INSCRIPCIONES'
+        // ESCUCHA EN TIEMPO REAL LAS INSCRIPCIONES DEL ESTUDIANTE
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('inscripciones')
@@ -130,8 +126,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       .toLowerCase();
 
               final bool matchUid = authUid.isNotEmpty && estId == authUid;
-              final bool matchEmail = (authEmail.isNotEmpty && estEmail == authEmail) ||
-                  (userDocEmail.isNotEmpty && estEmail == userDocEmail);
+              final bool matchEmail =
+                  authEmail.isNotEmpty && estEmail == authEmail;
 
               return matchUid || matchEmail;
             }).toList();
@@ -243,7 +239,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             child: Image.asset(
               'lib/assets/Logo.png',
               height: 40,
-              errorBuilder: (_, _, _) => Row(
+              errorBuilder: (_, __, ___) => Row(
                 children: const [
                   Icon(Icons.fitness_center, color: blueDark, size: 24),
                   SizedBox(width: 8),
@@ -497,9 +493,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // CONTENIDO DE DEPORTES INSCRITOS CON RENDERIZADO INMEDIATO E IMAGEN EN TIEMPO REAL
-  // ===========================================================================
   Widget _buildMainContent(
       List<DocumentSnapshot> misInscripciones, String nombreEstudiante) {
     return Column(

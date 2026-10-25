@@ -17,15 +17,16 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // Controladores de texto
   late TextEditingController _nombreCtrl;
   late TextEditingController _telefonoCtrl;
   late TextEditingController _especialidadCtrl;
   late TextEditingController _ubicacionCtrl;
   late TextEditingController _biografiaCtrl;
+  late TextEditingController _correoCtrl;
 
   bool _isInitialized = false;
   bool _isSaving = false;
+  String _fotoUrl = '';
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     _especialidadCtrl = TextEditingController();
     _ubicacionCtrl = TextEditingController();
     _biografiaCtrl = TextEditingController();
+    _correoCtrl = TextEditingController();
   }
 
   @override
@@ -44,19 +46,15 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     _especialidadCtrl.dispose();
     _ubicacionCtrl.dispose();
     _biografiaCtrl.dispose();
+    _correoCtrl.dispose();
     super.dispose();
   }
 
-  // ===========================================================================
-  // MODAL PARA CAMBIAR FOTO (AVATARES DE DEPORTES Y ENTRENADORES)
-  // ===========================================================================
-  void _showChangeProfilePictureDialog(
-      BuildContext context, String currentUrl, String docId) {
+  void _showChangeProfilePictureDialog(BuildContext context, String currentUrl) {
     final urlCtrl = TextEditingController(text: currentUrl);
     String selectedAvatar = currentUrl;
 
     final List<Map<String, String>> sampleAvatars = [
-      // Pelotas y deportes
       {
         'label': 'Fútbol',
         'url':
@@ -68,45 +66,14 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
             'https://images.unsplash.com/photo-1519861531473-9200262188bf?auto=format&fit=crop&w=300&q=80',
       },
       {
-        'label': 'Voleibol',
-        'url':
-            'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        'label': 'Tenis',
-        'url':
-            'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        'label': 'Fitness',
-        'url':
-            'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        'label': 'Atletismo',
-        'url':
-            'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=300&q=80',
-      },
-      // Personas y entrenadores
-      {
-        'label': 'Entrenadora 1',
-        'url':
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-      },
-      {
         'label': 'Entrenador 1',
         'url':
             'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
       },
       {
-        'label': 'Entrenador 2',
+        'label': 'Entrenadora 1',
         'url':
-            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        'label': 'Entrenadora 2',
-        'url':
-            'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
       },
     ];
 
@@ -162,11 +129,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                             borderSide:
                                 const BorderSide(color: Color(0xFFCBD5E1)),
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
                         ),
                         onChanged: (val) {
                           setDialogState(() {
@@ -175,14 +137,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      const Text(
-                        'O selecciona un avatar de muestra:',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: blueDark),
-                      ),
-                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
@@ -233,19 +187,28 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
                   ),
                   onPressed: () async {
                     final String finalUrl = urlCtrl.text.trim().isEmpty
                         ? selectedAvatar
                         : urlCtrl.text.trim();
 
-                    if (docId.isNotEmpty && docId != 'temp_id') {
+                    setState(() => _fotoUrl = finalUrl);
+
+                    final uid = _currentUser?.uid;
+                    if (uid != null && uid.isNotEmpty) {
+                      try {
+                        await _currentUser?.updatePhotoURL(finalUrl);
+                      } catch (_) {}
+
                       await FirebaseFirestore.instance
                           .collection('users')
-                          .doc(docId)
-                          .update({'fotoUrl': finalUrl, 'photoUrl': finalUrl});
+                          .doc(uid)
+                          .set({
+                        'fotoUrl': finalUrl,
+                        'photoUrl': finalUrl,
+                        'actualizadoEn': FieldValue.serverTimestamp(),
+                      }, SetOptions(merge: true));
                     }
 
                     if (ctx.mounted) Navigator.pop(ctx);
@@ -261,32 +224,50 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     );
   }
 
-  // ===========================================================================
-  // GUARDAR CAMBIOS EN FIRESTORE (ACTUALIZADO CON ROL DE ENTRENADOR)
-  // ===========================================================================
-  Future<void> _saveProfileData(String docId) async {
+  Future<void> _saveProfileData() async {
+    final uid = _currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
     setState(() => _isSaving = true);
     try {
       final String nuevoNombre = _nombreCtrl.text.trim();
+      final String correoEntrenador = _currentUser?.email ?? '';
 
-      if (docId.isNotEmpty && docId != 'temp_id') {
-        await FirebaseFirestore.instance.collection('users').doc(docId).update({
-          'nombre': nuevoNombre,
-          'nombreApellido': nuevoNombre,
-          'nombreCompleto': nuevoNombre,
-          'telefono': _telefonoCtrl.text.trim(),
-          'especialidad': _especialidadCtrl.text.trim(),
-          'ubicacion': _ubicacionCtrl.text.trim(),
-          'biografia': _biografiaCtrl.text.trim(),
-          'rol': 'entrenador', // <- Asegura que se guarde el rol de profesor correctamente
-          'actualizadoEn': FieldValue.serverTimestamp(),
-        });
+      try {
+        await _currentUser?.updateDisplayName(nuevoNombre);
+        if (_fotoUrl.isNotEmpty) {
+          await _currentUser?.updatePhotoURL(_fotoUrl);
+        }
+      } catch (_) {}
+
+      final Map<String, dynamic> updateData = {
+        'nombre': nuevoNombre,
+        'nombreApellido': nuevoNombre,
+        'nombreCompleto': nuevoNombre,
+        'telefono': _telefonoCtrl.text.trim(),
+        'especialidad': _especialidadCtrl.text.trim(),
+        'ubicacion': _ubicacionCtrl.text.trim(),
+        'biografia': _biografiaCtrl.text.trim(),
+        'correo': correoEntrenador,
+        'email': correoEntrenador,
+        'rol': 'Entrenador',
+        'actualizadoEn': FieldValue.serverTimestamp(),
+      };
+
+      if (_fotoUrl.isNotEmpty) {
+        updateData['fotoUrl'] = _fotoUrl;
+        updateData['photoUrl'] = _fotoUrl;
       }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(updateData, SetOptions(merge: true));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('¡Información de perfil actualizada exitosamente!'),
+            content: Text('¡Perfil de entrenador actualizado con éxito!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -306,11 +287,17 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final String userEmail =
-        _currentUser?.email ?? 'entrenador@unimet.edu.ve';
+    final String uid = _currentUser?.uid ?? '';
+    final String authEmail = _currentUser?.email ?? '';
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+    return StreamBuilder<DocumentSnapshot>(
+      // OBTIENE EXCLUSIVAMENTE EL DOCUMENTO DEL ENTRENADOR POR UID
+      stream: uid.isNotEmpty
+          ? FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .snapshots()
+          : const Stream.empty(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !_isInitialized) {
@@ -321,59 +308,32 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
           );
         }
 
-        DocumentSnapshot? userDoc;
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final docs = snapshot.data!.docs;
-          final matches = docs.where((doc) {
-            final d = doc.data() as Map<String, dynamic>;
-            final String docEmail =
-                (d['correo'] ?? d['email'] ?? '').toString().toLowerCase();
-            
-            // Filtro estricto para asegurar que sea entrenador/profesor
-            final String rol = (d['rol'] ?? d['role'] ?? '').toString().toLowerCase();
-            final bool esEntrenador = rol == 'entrenador' || rol == 'teacher' || rol == 'profesor' || rol == 'admin';
-
-            return (doc.id == _currentUser?.uid ||
-                docEmail == userEmail.toLowerCase()) && esEntrenador;
-          });
-
-          if (matches.isNotEmpty) {
-            userDoc = matches.first;
-          }
-        }
-
         final Map<String, dynamic> data =
-            userDoc != null ? (userDoc.data() as Map<String, dynamic>) : {};
+            (snapshot.hasData && snapshot.data!.data() != null)
+                ? (snapshot.data!.data() as Map<String, dynamic>)
+                : {};
 
         final String nombreRegistrado = (data['nombreApellido'] ??
                 data['nombreCompleto'] ??
                 data['nombre'] ??
                 _currentUser?.displayName ??
-                '')
+                'Entrenador UNIMET')
             .toString()
             .trim();
 
-        final String fotoUrl = (data['fotoUrl'] ??
-                data['photoUrl'] ??
-                'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80')
-            .toString();
-
-        final String especialidad = (data['especialidad'] ??
-                data['disciplinas'] ??
-                'Fútbol Sala y Baloncesto')
-            .toString();
-
-        final String docId = userDoc?.id ?? _currentUser?.uid ?? 'temp_id';
-
         if (!_isInitialized) {
           _nombreCtrl.text = nombreRegistrado;
-          _telefonoCtrl.text =
-              (data['telefono'] ?? '+58 412 000 0000').toString();
-          _especialidadCtrl.text = especialidad;
+          _correoCtrl.text = authEmail;
+          _telefonoCtrl.text = (data['telefono'] ?? '').toString();
+          _especialidadCtrl.text =
+              (data['especialidad'] ?? 'Fútbol Sala y Baloncesto').toString();
           _ubicacionCtrl.text =
               (data['ubicacion'] ?? 'Campus Principal · UNIMET').toString();
-          _biografiaCtrl.text = (data['biografia'] ??
-                  'Entrenador con más de 8 años de experiencia impulsando el alto rendimiento deportivo universitario.')
+          _biografiaCtrl.text = (data['biografia'] ?? '').toString();
+          _fotoUrl = (data['fotoUrl'] ??
+                  data['photoUrl'] ??
+                  _currentUser?.photoURL ??
+                  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80')
               .toString();
           _isInitialized = true;
         }
@@ -385,9 +345,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // =============================================================
-                // BOTÓN: VOLVER AL DASHBOARD DE MAESTRO
-                // =============================================================
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: blueDark,
@@ -397,7 +354,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    elevation: 1,
                   ),
                   onPressed: () {
                     if (Navigator.canPop(context)) {
@@ -422,11 +378,9 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                 ),
                 const SizedBox(height: 24),
 
-                // ESTRUCTURA PRINCIPAL DE LA PÁGINA
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // COLUMNA IZQUIERDA: TARJETA DE PERFIL Y AVATAR
                     Container(
                       width: 300,
                       padding: const EdgeInsets.all(24),
@@ -444,7 +398,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                               CircleAvatar(
                                 radius: 65,
                                 backgroundColor: blueDark,
-                                backgroundImage: NetworkImage(fotoUrl),
+                                backgroundImage: NetworkImage(_fotoUrl),
                               ),
                               Container(
                                 padding: const EdgeInsets.all(6),
@@ -459,9 +413,9 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            nombreRegistrado.isNotEmpty
-                                ? nombreRegistrado
-                                : 'Entrenador UNIMET',
+                            _nombreCtrl.text.isNotEmpty
+                                ? _nombreCtrl.text
+                                : nombreRegistrado,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 20,
@@ -471,7 +425,9 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            especialidad,
+                            _especialidadCtrl.text.isNotEmpty
+                                ? _especialidadCtrl.text
+                                : 'Fútbol Sala y Baloncesto',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey),
@@ -493,7 +449,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                     color: Colors.green, size: 14),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Entrenador activo',
+                                  'Entrenador Activo',
                                   style: TextStyle(
                                     color: Colors.green,
                                     fontSize: 11,
@@ -513,7 +469,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                   horizontal: 16, vertical: 12),
                             ),
                             onPressed: () => _showChangeProfilePictureDialog(
-                                context, fotoUrl, docId),
+                                context, _fotoUrl),
                             icon: const Icon(Icons.upload,
                                 size: 16, color: blueDark),
                             label: const Text(
@@ -530,7 +486,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
                     const SizedBox(width: 30),
 
-                    // COLUMNA DERECHA: FORMULARIO CON NOMBRE REGISTRADO
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(28),
@@ -559,7 +514,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Información personal',
+                                      'Perfil de Entrenador',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -567,7 +522,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                       ),
                                     ),
                                     Text(
-                                      'Datos de contacto y perfil profesional en VirtuMet.',
+                                      'Datos institucionales y de contacto en VirtuMet.',
                                       style: TextStyle(
                                           fontSize: 12, color: Colors.grey),
                                     ),
@@ -583,19 +538,19 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                   child: _buildFormField(
                                     label: 'Nombre completo *',
                                     controller: _nombreCtrl,
-                                    hint: 'ingresa tu nombre y apellido',
+                                    hint: 'Nombre y Apellido',
+                                    onChanged: (val) => setState(() {}),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: _buildFormField(
-                                    label: 'Correo electrónico *',
-                                    controller:
-                                        TextEditingController(text: userEmail),
-                                    hint: 'admin@correo.unimet.ve',
+                                    label: 'Correo Electrónico *',
+                                    controller: _correoCtrl,
+                                    hint: 'entrenador@correo.unimet.edu.ve',
                                     readOnly: true,
                                     helper:
-                                        'Usaremos este correo para notificaciones institucionales.',
+                                        'Email verificado del entrenador registrado.',
                                   ),
                                 ),
                               ],
@@ -614,9 +569,10 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: _buildFormField(
-                                    label: 'Especialidad / Disciplinas',
+                                    label: 'Especialidad / Disciplina',
                                     controller: _especialidadCtrl,
-                                    hint: 'Fútbol Sala y Baloncesto',
+                                    hint: 'Fútbol Sala',
+                                    onChanged: (val) => setState(() {}),
                                   ),
                                 ),
                               ],
@@ -627,15 +583,14 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                               label: 'Ubicación / Campus',
                               controller: _ubicacionCtrl,
                               hint: 'Campus Principal · UNIMET',
-                              helper:
-                                  'Lugar habitual donde diriges los entrenamientos.',
                             ),
                             const SizedBox(height: 16),
 
                             _buildFormField(
                               label: 'Biografía / Experiencia',
                               controller: _biografiaCtrl,
-                              hint: 'Escribe tu experiencia deportiva...',
+                              hint:
+                                  'Escribe tu experiencia profesional...',
                               maxLines: 3,
                             ),
                             const SizedBox(height: 24),
@@ -652,9 +607,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                onPressed: _isSaving
-                                    ? null
-                                    : () => _saveProfileData(docId),
+                                onPressed: _isSaving ? null : _saveProfileData,
                                 icon: _isSaving
                                     ? const SizedBox(
                                         width: 16,
@@ -696,6 +649,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     bool readOnly = false,
     String? helper,
     int maxLines = 1,
+    ValueChanged<String>? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,6 +667,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
           controller: controller,
           readOnly: readOnly,
           maxLines: maxLines,
+          onChanged: onChanged,
           style: TextStyle(
             fontSize: 13,
             color: readOnly ? Colors.black54 : blueDark,
