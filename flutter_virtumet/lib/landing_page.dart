@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'registration_page.dart';
+import 'landing_catalog_section.dart';
 
-class LandingPage extends StatelessWidget {
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
 
   // Colores corporativos de VirtuMet
@@ -13,6 +14,25 @@ class LandingPage extends StatelessWidget {
   static const Color textDark = Color(0xFF1F2937);
 
   @override
+  State<LandingPage> createState() => _LandingPageState();
+}
+
+class _LandingPageState extends State<LandingPage> {
+  final GlobalKey _catalogKey = GlobalKey();
+
+  // Desplaza la página hasta el catálogo público
+  void _scrollToCatalog() {
+    final ctx = _catalogKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -20,10 +40,16 @@ class LandingPage extends StatelessWidget {
         child: Column(
           children: [
             // 1. Barra de Navegación Superior
-            const _Navbar(),
+            _Navbar(onDeportes: _scrollToCatalog),
 
             // 2. Sección Principal (Hero Banner)
-            const _HeroSection(),
+            _HeroSection(onVerDisciplinas: _scrollToCatalog),
+
+            // 2.1 Catálogo público en tiempo real (solo vista)
+            KeyedSubtree(
+              key: _catalogKey,
+              child: const LandingCatalogSection(),
+            ),
 
             // 3. Sección: Comunidad y Liderazgo
             const _FeatureSection2(),
@@ -50,7 +76,8 @@ class LandingPage extends StatelessWidget {
 // 1. NAVBAR (BARRA DE NAVEGACIÓN SUPERIOR CON LOGO OFICIAL)
 // =============================================================================
 class _Navbar extends StatelessWidget {
-  const _Navbar();
+  final VoidCallback onDeportes;
+  const _Navbar({required this.onDeportes});
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +106,7 @@ class _Navbar extends StatelessWidget {
           // Menú de Enlaces
           _navLink('Inicio'),
           _navLink('Servicios'),
-          _navLink('Deportes'),
+          _navLink('Deportes', onTap: onDeportes),
 
           const SizedBox(width: 30),
 
@@ -103,11 +130,11 @@ class _Navbar extends StatelessWidget {
     );
   }
 
-  static Widget _navLink(String title) {
+  static Widget _navLink(String title, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: InkWell(
-        onTap: () {}, 
+        onTap: onTap ?? () {},
         child: Text(
           title,
           style: const TextStyle(
@@ -125,7 +152,8 @@ class _Navbar extends StatelessWidget {
 // 2. HERO SECTION (HERO BANNER PRINCIPAL CON ESTADÍSTICAS EN TIEMPO REAL)
 // =============================================================================
 class _HeroSection extends StatelessWidget {
-  const _HeroSection();
+  final VoidCallback onVerDisciplinas;
+  const _HeroSection({required this.onVerDisciplinas});
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +233,7 @@ class _HeroSection extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               OutlinedButton(
-                onPressed: () {}, 
+                onPressed: onVerDisciplinas,
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),

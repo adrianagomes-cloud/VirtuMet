@@ -255,6 +255,10 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                           ? entrenadores.first
                                           : null);
 
+                              // El dropdown muestra este valor por defecto, así que
+                              // también debe guardarse (si no, se guarda "Sin Entrenador").
+                              entrenadorVal ??= selectedItem;
+
                               return DropdownButtonFormField<String>(
                                 initialValue: selectedItem,
                                 decoration: _inputDecoration(

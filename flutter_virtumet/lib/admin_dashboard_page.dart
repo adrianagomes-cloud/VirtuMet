@@ -3,6 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'admin_sports_view.dart';
+import 'admin_common.dart' show AdminComingSoon;
+import 'admin_users_view.dart';
+import 'admin_fichas_view.dart';
+import 'admin_stats_view.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -58,6 +62,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             if (_selectedIndex == 1) ...[
               // VISTA COMPLETA DE GESTIÓN DE DISCIPLINAS
               const AdminSportsView(),
+            ] else if (_selectedIndex == 2) ...[
+              // GESTIÓN DE USUARIOS (estudiantes activos/inactivos, aprobar entrenadores)
+              const AdminUsersView(),
+            ] else if (_selectedIndex == 3) ...[
+              // PLANTILLA DE FICHA DEPORTIVA + INSCRIPCIONES
+              const AdminFichasView(),
+            ] else if (_selectedIndex == 4) ...[
+              const AdminComingSoon(title: 'Eventos'),
+            ] else if (_selectedIndex == 5) ...[
+              // REPORTES Y ESTADÍSTICAS
+              const AdminStatsView(),
             ] else ...[
               // VISTA PRINCIPAL (RESUMEN / DASHBOARD HOME)
               _buildHeroBanner(nombreAdmin),
