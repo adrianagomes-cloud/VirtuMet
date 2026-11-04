@@ -215,12 +215,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                                 Expanded(
                                                   flex: 1,
                                                   child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.stretch,
                                                     children: [
                                                       _buildCriticalAlertsCard(),
                                                       const SizedBox(height: 24),
                                                       _buildUpcomingEventsCard(),
-                                                      const SizedBox(height: 24),
-                                                      _buildWeeklyPerformanceCard(),
                                                     ],
                                                   ),
                                                 ),
@@ -416,38 +416,45 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildKpiGrid({required int totalAtletas, required int sesionesHoy}) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 20,
-        children: [
-          _kpiCard(
-            Icons.groups_outlined,
-            'TOTAL ATLETAS',
-            totalAtletas.toString(),
-            'EN VIVO',
-            Colors.green,
-            accentColor: orangePrimary,
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('eventos').snapshots(),
+      builder: (context, eventsSnapshot) {
+        final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 20,
+            runSpacing: 20,
+            children: [
+              _kpiCard(
+                Icons.groups_outlined,
+                'TOTAL ATLETAS',
+                totalAtletas.toString(),
+                'EN VIVO',
+                Colors.green,
+                accentColor: orangePrimary,
+              ),
+              _kpiCard(
+                Icons.calendar_today_outlined,
+                'SESIONES HOY',
+                sesionesHoy.toString().padLeft(2, '0'),
+                'EN VIVO',
+                Colors.green,
+                accentColor: blueDark,
+              ),
+              _kpiCard(
+                Icons.event_available_outlined,
+                'PRÓXIMOS EVENTOS',
+                totalEventos.toString().padLeft(2, '0'),
+                'EN VIVO',
+                Colors.green,
+                accentColor: orangePrimary,
+              ),
+            ],
           ),
-          _kpiCard(
-            Icons.calendar_today_outlined,
-            'SESIONES HOY',
-            sesionesHoy.toString().padLeft(2, '0'),
-            'EN VIVO',
-            Colors.green,
-            accentColor: blueDark,
-          ),
-          _kpiCard(
-            Icons.event_available_outlined,
-            'PRÓXIMOS EVENTOS',
-            '02',
-            null,
-            null,
-            accentColor: orangePrimary,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -705,6 +712,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildCriticalAlertsCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: blueDark,
@@ -755,74 +763,163 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildUpcomingEventsCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('PRÓXIMOS EVENTOS',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 14, color: blueDark)),
-          const SizedBox(height: 16),
-          _eventItem('Torneo Inter-Facultades', 'OCT 28', Colors.green),
-          _eventItem('Cierre de Inscripciones', 'NOV 02', orangePrimary),
-        ],
-      ),
-    );
-  }
-
-  Widget _eventItem(String title, String date, Color tagColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+          const Row(
             children: [
-              Container(width: 4, height: 16, color: tagColor),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: blueDark)),
+              Icon(Icons.emoji_events_outlined,
+                  color: orangePrimary, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'PRÓXIMOS EVENTOS',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: blueDark,
+                ),
+              ),
+              Spacer(),
+              Text(
+                'EN VIVO',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
-          Text(date,
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey)),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 4),
+          const Text(
+            'Calendario institucional UNIMET en tiempo real',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          const Divider(height: 24),
 
-  Widget _buildWeeklyPerformanceCard() {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: navyHeader,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('RENDIMIENTO SEMANAL',
-              style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Text('92%',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900)),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('eventos')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: orangePrimary,
+                    ),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+
+              if (docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'No hay eventos agendados.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: docs.take(4).map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String titulo =
+                      (data['titulo'] ?? 'Evento').toString();
+                  final String deporte =
+                      (data['deporte'] ?? 'General').toString();
+                  final String fechaKey =
+                      (data['fechaKey'] ?? '').toString();
+                  final String hora = (data['hora'] ?? '').toString();
+                  final String lugar = (data['lugar'] ?? '').toString();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: bgLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: blueDark,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.event,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                titulo,
+                                style: const TextStyle(
+                                  color: blueDark,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$deporte • $fechaKey ${hora.isNotEmpty ? "($hora)" : ""}',
+                                style: const TextStyle(
+                                  color: orangePrimary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (lugar.isNotEmpty)
+                                Text(
+                                  lugar,
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );

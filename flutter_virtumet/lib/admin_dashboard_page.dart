@@ -3,10 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'admin_sports_view.dart';
-import 'admin_common.dart' show AdminComingSoon;
 import 'admin_users_view.dart';
 import 'admin_fichas_view.dart';
 import 'admin_stats_view.dart';
+import 'admin_events_view.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -18,17 +18,16 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
   
-  // Índice para controlar la sección activa:
+  // Índice de sección activa:
   // 0: Resumen / Inicio
-  // 1: Disciplinas (AdminSportsView)
+  // 1: Disciplinas
   // 2: Usuarios
   // 3: Fichas e Inscripciones
-  // 4: Eventos
+  // 4: Eventos (AdminEventsView)
   // 5: Reportes y Avisos
   int _selectedIndex = 0;
   String _searchQuery = '';
 
-  // Colores corporativos de VirtuMet
   static const Color orangePrimary = Color(0xFFFF5500);
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color navyHeader = Color(0xFF0A192F);
@@ -55,26 +54,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // BARRA SUPERIOR (NAVBAR) GLOBAL
             _buildTopNavbar(context, adminEmail),
 
-            // CONTENIDO DINÁMICO SEGÚN LA PESTAÑA SELECCIONADA
             if (_selectedIndex == 1) ...[
-              // VISTA COMPLETA DE GESTIÓN DE DISCIPLINAS
               const AdminSportsView(),
             ] else if (_selectedIndex == 2) ...[
-              // GESTIÓN DE USUARIOS (estudiantes activos/inactivos, aprobar entrenadores)
               const AdminUsersView(),
             ] else if (_selectedIndex == 3) ...[
-              // PLANTILLA DE FICHA DEPORTIVA + INSCRIPCIONES
               const AdminFichasView(),
             ] else if (_selectedIndex == 4) ...[
-              const AdminComingSoon(title: 'Eventos'),
+              const AdminEventsView(),
             ] else if (_selectedIndex == 5) ...[
-              // REPORTES Y ESTADÍSTICAS
               const AdminStatsView(),
             ] else ...[
-              // VISTA PRINCIPAL (RESUMEN / DASHBOARD HOME)
               _buildHeroBanner(nombreAdmin),
 
               Padding(
@@ -83,29 +75,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // MÉTRICAS / KPIS EN TIEMPO REAL
                     _buildKpiGrid(),
                     const SizedBox(height: 32),
 
-                    // DISPOSICIÓN PRINCIPAL EN GRID
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final bool isDesktop = constraints.maxWidth > 900;
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // SECCIÓN IZQUIERDA: RESUMEN RÁPIDO DE DISCIPLINAS EN TIEMPO REAL
                             Expanded(
                               flex: isDesktop ? 2 : 1,
                               child: _buildSportsManagementCard(),
                             ),
                             if (isDesktop) const SizedBox(width: 28),
 
-                            // SECCIÓN DERECHA: ALERTAS Y ESTADO
                             if (isDesktop)
                               Expanded(
                                 flex: 1,
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     _buildCriticalAlertsCard(),
                                     const SizedBox(height: 24),
@@ -124,7 +113,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
             ],
 
-            // PIE DE PÁGINA INSTITUCIONAL GLOBAL
             _buildFooter(),
           ],
         ),
@@ -132,16 +120,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 1. BARRA SUPERIOR (NAVBAR)
-  // ===========================================================================
   Widget _buildTopNavbar(BuildContext context, String email) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
       color: Colors.white,
       child: Row(
         children: [
-          // LOGO DE VIRTUMET (AL HACER CLIC REGRESA AL INICIO)
           InkWell(
             onTap: () => setState(() => _selectedIndex = 0),
             borderRadius: BorderRadius.circular(8),
@@ -175,7 +159,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           const SizedBox(width: 40),
 
-          // ENLACES DE NAVEGACIÓN
           _navLink('Disciplinas', targetIndex: 1),
           _navLink('Usuarios', targetIndex: 2),
           _navLink('Fichas e Inscripciones', targetIndex: 3),
@@ -184,7 +167,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
           const Spacer(),
 
-          // USUARIO Y CERRAR SESIÓN
           Row(
             children: [
               Container(
@@ -257,9 +239,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 2. HERO BANNER
-  // ===========================================================================
   Widget _buildHeroBanner(String nombreAdmin) {
     return Container(
       width: double.infinity,
@@ -379,9 +358,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 3. TARJETAS KPI DE MÉTRICAS EN TIEMPO REAL (FIRESTORE)
-  // ===========================================================================
   Widget _buildKpiGrid() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('users').snapshots(),
@@ -535,9 +511,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 4. LISTA PRINCIPAL (100% FIRESTORE SIN MOCK NI DEFAULT DATA)
-  // ===========================================================================
   Widget _buildSportsManagementCard() {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -606,7 +579,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           const SizedBox(height: 24),
 
-          // STREAMBUILDER CONECTADO DIRECTAMENTE A FIRESTORE
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
             builder: (context, snapshot) {
@@ -621,7 +593,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
               final docs = snapshot.data?.docs ?? [];
 
-              // Si la colección de Firestore está vacía
               if (docs.isEmpty) {
                 return Container(
                   width: double.infinity,
@@ -652,7 +623,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               }
 
-              // Filtro dinámico por texto de búsqueda
               final filteredDocs = docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final name = (data['nombre'] ?? '').toString().toLowerCase();
@@ -769,11 +739,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 5. TARJETAS LATERALES
-  // ===========================================================================
   Widget _buildCriticalAlertsCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: blueDark,
@@ -801,12 +769,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _alertItem('Revisión urgente de ficha: Estudiante V-28123456'),
           _alertItem('Solicitud de cancha techada pendiente por aprobar'),
           const SizedBox(height: 14),
-          const Text(
-            'VER TODAS LAS ALERTAS >',
-            style: TextStyle(
-              color: orangePrimary,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 5),
+            child: const Text(
+              'VER TODAS LAS ALERTAS >',
+              style: TextStyle(
+                color: orangePrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -841,6 +812,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildUpcomingEventsCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -864,18 +836,74 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Calendario Institucional UNIMET',
+            'Calendario Institucional UNIMET (En vivo)',
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          _eventItem('Torneo Inter-Facultades', 'OCT 28', Colors.green),
-          _eventItem('Cierre de Inscripciones', 'NOV 02', orangePrimary),
-          _eventItem('Exhibición de Natación', 'NOV 05', Colors.blue),
+          
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('eventos')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: orangePrimary,
+                    ),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+
+              if (docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'No hay eventos agendados.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                );
+              }
+
+              return Column(
+                children: docs.take(4).map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String titulo = (data['titulo'] ?? 'Evento').toString();
+                  final String deporte = (data['deporte'] ?? 'General').toString();
+                  final String fechaKey = (data['fechaKey'] ?? '').toString();
+                  final String hora = (data['hora'] ?? '').toString();
+
+                  String labelFecha = fechaKey;
+                  if (fechaKey.length >= 10) {
+                    final parts = fechaKey.split('-');
+                    if (parts.length == 3) {
+                      labelFecha = '${parts[2]}/${parts[1]}';
+                    }
+                  }
+
+                  return _eventItem(
+                    '$titulo ($deporte)',
+                    '$labelFecha ${hora.isNotEmpty ? '• $hora' : ''}',
+                    orangePrimary,
+                  );
+                }).toList(),
+              );
+            },
+          ),
+
           const SizedBox(height: 14),
-          const Text(
-            'VER CALENDARIO COMPLETO',
-            style: TextStyle(
-                color: blueDark, fontSize: 11, fontWeight: FontWeight.bold),
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 4),
+            child: const Text(
+              'VER CALENDARIO COMPLETO',
+              style: TextStyle(
+                  color: blueDark, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -888,20 +916,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(width: 4, height: 16, color: tagColor),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: blueDark,
+          Expanded(
+            child: Row(
+              children: [
+                Container(width: 4, height: 16, color: tagColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: blueDark,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Text(
             date,
             style: const TextStyle(
@@ -917,6 +951,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildSystemStatusCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: navyHeader,
@@ -965,9 +1000,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ===========================================================================
-  // 6. PIE DE PÁGINA
-  // ===========================================================================
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 50),

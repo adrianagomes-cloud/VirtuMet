@@ -239,8 +239,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             child: Image.asset(
               'lib/assets/Logo.png',
               height: 40,
-              errorBuilder: (_, __, ___) => Row(
-                children: const [
+              errorBuilder: (_, __, ___) => const Row(
+                children: [
                   Icon(Icons.fitness_center, color: blueDark, size: 24),
                   SizedBox(width: 8),
                   Text('VirtuMet',
@@ -429,20 +429,36 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildStatsRow(int totalInscritas) {
-    return Row(
-      children: [
-        _statCard('DISCIPLINAS INSCRITAS',
-            totalInscritas.toString().padLeft(2, '0'), Icons.people_outline,
-            isLive: true),
-        const SizedBox(width: 24),
-        _statCard('ACTIVIDADES HOY', totalInscritas > 0 ? '01' : '00',
-            Icons.calendar_today_outlined,
-            isLive: true),
-        const SizedBox(width: 24),
-        _statCard('PRÓXIMOS EVENTOS', '05', Icons.emoji_events_outlined),
-        const SizedBox(width: 24),
-        _statCard('PORCENTAJE ASISTENCIA', '95%', Icons.show_chart),
-      ],
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('eventos').snapshots(),
+      builder: (context, eventsSnapshot) {
+        final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
+
+        return Row(
+          children: [
+            _statCard(
+              'DISCIPLINAS INSCRITAS',
+              totalInscritas.toString().padLeft(2, '0'),
+              Icons.people_outline,
+              isLive: true,
+            ),
+            const SizedBox(width: 24),
+            _statCard(
+              'ACTIVIDADES HOY',
+              totalInscritas > 0 ? '01' : '00',
+              Icons.calendar_today_outlined,
+              isLive: true,
+            ),
+            const SizedBox(width: 24),
+            _statCard(
+              'PRÓXIMOS EVENTOS',
+              totalEventos.toString().padLeft(2, '0'),
+              Icons.emoji_events_outlined,
+              isLive: true,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -476,14 +492,14 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ),
             const SizedBox(height: 24),
             Text(title,
-                style: TextStyle(
+                style: const TextStyle(
                     color: textGrey,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1)),
             const SizedBox(height: 4),
             Text(value,
-                style: TextStyle(
+                style: const TextStyle(
                     color: blueDark,
                     fontSize: 32,
                     fontWeight: FontWeight.bold)),
@@ -666,39 +682,193 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildRightSidebar() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: blueDark,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
+    return Column(
+      children: [
+        // 1. Avisos Críticos
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: blueDark,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.campaign_outlined, color: Colors.white, size: 20),
-              SizedBox(width: 8),
-              Text('AVISOS CRÍTICOS',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1)),
+              const Row(
+                children: [
+                  Icon(Icons.campaign_outlined, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text('AVISOS CRÍTICOS',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _alertItem('Inscripciones de disciplinas activas este semestre'),
+              const SizedBox(height: 12),
+              _alertItem('Mantenimiento Cancha Principal: Mañana 08:00 AM'),
             ],
           ),
-          const SizedBox(height: 24),
-          _alertItem('Inscripciones de disciplinas activas este semestre'),
-          const SizedBox(height: 16),
-          _alertItem('Mantenimiento Cancha Principal: Mañana 08:00 AM'),
-          const SizedBox(height: 32),
-          const Text('VER TODAS LAS ALERTAS >',
-              style: TextStyle(
-                  color: Colors.orange,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold)),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+
+        // 2. Eventos en Vivo desde Firestore
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: cardDecoration,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.emoji_events_outlined,
+                      color: orangePrimary, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'PRÓXIMOS EVENTOS',
+                    style: TextStyle(
+                      color: blueDark,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Spacer(),
+                  Text(
+                    'EN VIVO',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Calendario institucional en tiempo real',
+                style: TextStyle(color: textGrey, fontSize: 12),
+              ),
+              const Divider(height: 24),
+
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('eventos')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: orangePrimary,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final docs = snapshot.data?.docs ?? [];
+
+                  if (docs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Text(
+                          'No hay eventos agendados por el momento.',
+                          style: TextStyle(color: textGrey, fontSize: 13),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: docs.take(4).map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final String titulo =
+                          (data['titulo'] ?? 'Evento').toString();
+                      final String deporte =
+                          (data['deporte'] ?? 'General').toString();
+                      final String fechaKey =
+                          (data['fechaKey'] ?? '').toString();
+                      final String hora = (data['hora'] ?? '').toString();
+                      final String lugar = (data['lugar'] ?? '').toString();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: bgLight,
+                          borderRadius: BorderRadius.circular(10),
+                          border:
+                              Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: blueDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.event,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    titulo,
+                                    style: const TextStyle(
+                                      color: blueDark,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$deporte • $fechaKey ${hora.isNotEmpty ? "($hora)" : ""}',
+                                    style: const TextStyle(
+                                      color: orangePrimary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (lugar.isNotEmpty)
+                                    Text(
+                                      lugar,
+                                      style: const TextStyle(
+                                        color: textGrey,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -721,9 +891,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildFooter() {
-    return Center(
+    return const Center(
       child: Text('© 2026 VirtuMet · Bienestar y deporte universitario',
-          style: const TextStyle(color: textGrey, fontSize: 12)),
+          style: TextStyle(color: textGrey, fontSize: 12)),
     );
   }
 }

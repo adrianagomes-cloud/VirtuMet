@@ -53,11 +53,43 @@ class _RegistrationPageState extends State<RegistrationPage> {
     super.dispose();
   }
 
+  // Selector de fecha nativo
+  Future<void> _selectFechaNacimiento(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2003, 1, 1),
+      firstDate: DateTime(1940),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFFF5500),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF0F2C59),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate != null) {
+      final String dia = pickedDate.day.toString().padLeft(2, '0');
+      final String mes = pickedDate.month.toString().padLeft(2, '0');
+      final String anio = pickedDate.year.toString();
+
+      setState(() {
+        _fechaNacimientoController.text = '$dia/$mes/$anio';
+      });
+    }
+  }
+
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor completa todos los campos obligatorios (*).'),
+          content: Text('Por favor corrige los errores del formulario.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -70,7 +102,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
     final String password = _passwordController.text.trim();
 
     try {
-      // 1. Crear usuario en Firebase Auth
       final UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
         email: email,
@@ -79,17 +110,21 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
       final String uid = userCredential.user!.uid;
 
-      // 2. Preparar los datos según el rol
       final Map<String, dynamic> userData = {
         'uid': uid,
         'rol': _selectedRole,
         'correo': email,
+        'email': email,
         'fechaCreacion': FieldValue.serverTimestamp(),
       };
 
       if (_selectedRole == 'Estudiante') {
+        final String nombreCompleto =
+            '${_nombreController.text.trim()} ${_apellidoController.text.trim()}';
         userData.addAll({
-          'nombre': _nombreController.text.trim(),
+          'nombre': nombreCompleto,
+          'nombreApellido': nombreCompleto,
+          'nombreCompleto': nombreCompleto,
           'apellido': _apellidoController.text.trim(),
           'edad': int.tryParse(_edadController.text.trim()) ?? 0,
           'peso': double.tryParse(_pesoController.text.trim()) ?? 0.0,
@@ -97,16 +132,20 @@ class _RegistrationPageState extends State<RegistrationPage> {
           'carrera': _carreraController.text.trim(),
           'fechaNacimiento': _fechaNacimientoController.text.trim(),
         });
+        await userCredential.user?.updateDisplayName(nombreCompleto);
       } else {
+        final String nombreCoach = _nombreCoachController.text.trim();
         userData.addAll({
-          'nombreApellido': _nombreCoachController.text.trim(),
+          'nombre': nombreCoach,
+          'nombreApellido': nombreCoach,
+          'nombreCompleto': nombreCoach,
           'disciplinaExperiencia': _disciplinaController.text.trim(),
           'certificacion': _certificacionController.text.trim(),
           'estadoValidacion': 'Pendiente',
         });
+        await userCredential.user?.updateDisplayName(nombreCoach);
       }
 
-      // 3. Guardar en Firestore
       await FirebaseFirestore.instance.collection('users').doc(uid).set(userData);
 
       if (!mounted) return;
@@ -119,7 +158,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
         ),
       );
 
-      // 4. Redirigir al panel correspondiente según el rol
       if (_selectedRole == 'Estudiante') {
         Navigator.pushAndRemoveUntil(
           context,
@@ -140,7 +178,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
       } else if (e.code == 'weak-password') {
         mensaje = 'La contraseña debe tener al menos 6 caracteres.';
       } else if (e.code == 'invalid-email') {
-        mensaje = 'El formato del correo institucional no es válido.';
+        mensaje = 'El formato del correo no es válido.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,7 +206,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. ESTRUCTURA PRINCIPAL DE LA PÁGINA
           SafeArea(
             child: Row(
               children: [
@@ -262,7 +299,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
                     ),
                   ),
 
-                // Formulario de Registro
                 Expanded(
                   flex: 1,
                   child: Container(
@@ -362,19 +398,25 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     children: [
                                       Expanded(
                                         child: _buildTextField(
-                                          label: 'NOMBRE',
-                                          hint: 'juan',
+                                          label: 'NOMBRE *',
+                                          hint: 'Juan',
                                           controller: _nombreController,
                                           icon: Icons.person_outline,
+                                          validator: (v) => v == null || v.trim().isEmpty
+                                              ? 'Ingresa tu nombre'
+                                              : null,
                                         ),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: _buildTextField(
-                                          label: 'APELLIDO',
-                                          hint: 'perez',
+                                          label: 'APELLIDO *',
+                                          hint: 'Pérez',
                                           controller: _apellidoController,
                                           icon: Icons.person_outline,
+                                          validator: (v) => v == null || v.trim().isEmpty
+                                              ? 'Ingresa tu apellido'
+                                              : null,
                                         ),
                                       ),
                                     ],
@@ -389,9 +431,12 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           controller: _edadController,
                                           icon: Icons.calendar_today_outlined,
                                           keyboardType: TextInputType.number,
-                                          validator: (v) => v == null || v.isEmpty
-                                              ? 'Requerido'
-                                              : null,
+                                          validator: (v) {
+                                            if (v == null || v.trim().isEmpty) return 'Requerido';
+                                            final num? n = num.tryParse(v.trim());
+                                            if (n == null || n < 12 || n > 90) return 'Edad no válida';
+                                            return null;
+                                          },
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -401,34 +446,48 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           hint: '72.5',
                                           controller: _pesoController,
                                           icon: Icons.monitor_weight_outlined,
-                                          keyboardType: TextInputType.number,
-                                          validator: (v) => v == null || v.isEmpty
-                                              ? 'Requerido'
-                                              : null,
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          validator: (v) {
+                                            if (v == null || v.trim().isEmpty) return 'Requerido';
+                                            final num? n = num.tryParse(v.trim());
+                                            if (n == null || n <= 20) return 'Peso no válido';
+                                            return null;
+                                          },
                                         ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 16),
                                   _buildTextField(
-                                    label: 'NÚMERO DE CARNET',
+                                    label: 'NÚMERO DE CARNET *',
                                     hint: '2024111001',
                                     controller: _carnetController,
                                     icon: Icons.badge_outlined,
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Ingresa tu carnet institucional'
+                                        : null,
                                   ),
                                   const SizedBox(height: 16),
                                   _buildTextField(
-                                    label: 'CARRERA UNIVERSITARIA',
-                                    hint: 'Ingenieria de sistemas',
+                                    label: 'CARRERA UNIVERSITARIA *',
+                                    hint: 'Ingeniería de Sistemas',
                                     controller: _carreraController,
                                     icon: Icons.school_outlined,
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Ingresa tu carrera'
+                                        : null,
                                   ),
                                   const SizedBox(height: 16),
                                   _buildTextField(
-                                    label: 'FECHA DE NACIMIENTO',
-                                    hint: '15/05/2004',
+                                    label: 'FECHA DE NACIMIENTO *',
+                                    hint: 'DD/MM/AAAA',
                                     controller: _fechaNacimientoController,
                                     icon: Icons.event_outlined,
+                                    readOnly: true,
+                                    onTap: () => _selectFechaNacimiento(context),
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Selecciona tu fecha de nacimiento'
+                                        : null,
                                   ),
                                 ] else ...[
                                   _buildTextField(
@@ -436,8 +495,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Carlos Rivas',
                                     controller: _nombreCoachController,
                                     icon: Icons.person_outline,
-                                    validator: (v) => v == null || v.isEmpty
-                                        ? 'Requerido'
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Ingresa tu nombre y apellido'
                                         : null,
                                   ),
                                   const SizedBox(height: 16),
@@ -446,8 +505,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Fútbol Sala - 8 años',
                                     controller: _disciplinaController,
                                     icon: Icons.sports_soccer_outlined,
-                                    validator: (v) => v == null || v.isEmpty
-                                        ? 'Requerido'
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Ingresa tu disciplina y años de experiencia'
                                         : null,
                                   ),
                                   const SizedBox(height: 16),
@@ -456,8 +515,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Licencia CONMEBOL B',
                                     controller: _certificacionController,
                                     icon: Icons.verified_outlined,
-                                    validator: (v) => v == null || v.isEmpty
-                                        ? 'Requerido'
+                                    validator: (v) => v == null || v.trim().isEmpty
+                                        ? 'Ingresa tus certificaciones'
                                         : null,
                                   ),
                                 ],
@@ -465,7 +524,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                 const SizedBox(height: 16),
                                 _buildTextField(
                                   label: 'CORREO INSTITUCIONAL *',
-                                  hint: 'juan.perez@correo.unimet.ve',
+                                  hint: 'usuario@correo.unimet.ve',
                                   controller: _emailController,
                                   icon: Icons.email_outlined,
                                   keyboardType: TextInputType.emailAddress,
@@ -473,8 +532,11 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     if (v == null || v.trim().isEmpty) {
                                       return 'Ingresa tu correo';
                                     }
-                                    if (!v.contains('@')) {
-                                      return 'Correo no válido';
+                                    final bool isEmailValid = RegExp(
+                                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
+                                        .hasMatch(v.trim());
+                                    if (!isEmailValid) {
+                                      return 'Formato de correo no válido';
                                     }
                                     return null;
                                   },
@@ -597,7 +659,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
             ),
           ),
 
-          // 2. BOTÓN FLOTANTE "VOLVER AL INICIO"
           Positioned(
             top: 24,
             left: 24,
@@ -653,6 +714,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
     required TextEditingController controller,
     required IconData icon,
     bool obscureText = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
     Widget? suffixIcon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
@@ -673,6 +736,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          readOnly: readOnly,
+          onTap: onTap,
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hint,
