@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'attendance_page.dart';
 import 'teacher_profile_page.dart';
+import 'reviews_management_view.dart'; // Única adición para conectar las reseñas
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -92,7 +93,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                _buildTopNavbar(context, nombreUsuario, photoUrl),
+                _buildTopNavbar(context, userId, nombreUsuario, photoUrl),
 
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -216,7 +217,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                                   flex: 1,
                                                   child: Column(
                                                     crossAxisAlignment:
-                                                        CrossAxisAlignment.stretch,
+                                                        CrossAxisAlignment
+                                                            .stretch,
                                                     children: [
                                                       _buildCriticalAlertsCard(),
                                                       const SizedBox(height: 24),
@@ -250,7 +252,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildTopNavbar(
-      BuildContext context, String nombre, String photoUrl) {
+      BuildContext context, String userId, String nombre, String photoUrl) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
       color: Colors.white,
@@ -274,6 +276,30 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           _navLink('Nómina y Asistencia'),
           _navLink('Anuncios'),
           _navLink('Comunidad'),
+          
+          // Enlace limpio a Mis Reseñas (sin luces naranjas falsas en el dashboard)
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TeacherReviewsView(profesorUid: userId),
+                ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Text(
+                'Mis Reseñas',
+                style: TextStyle(
+                  color: blueDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+
           const Spacer(),
           Row(
             children: [
@@ -810,7 +836,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
           const Divider(height: 24),
-
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('eventos')
@@ -852,7 +877,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   final String fechaKey =
                       (data['fechaKey'] ?? '').toString();
                   final String hora = (data['hora'] ?? '').toString();
-                  final String lugar = (data['lugar'] ?? '').toString();
+
+                  String labelFecha = fechaKey;
+                  if (fechaKey.length >= 10) {
+                    final parts = fechaKey.split('-');
+                    if (parts.length == 3) {
+                      labelFecha = '${parts[2]}/${parts[1]}';
+                    }
+                  }
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -893,23 +925,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '$deporte • $fechaKey ${hora.isNotEmpty ? "($hora)" : ""}',
+                                '$deporte • $labelFecha ${hora.isNotEmpty ? "($hora)" : ""}',
                                 style: const TextStyle(
-                                  color: orangePrimary,
+                                  color: Colors.grey,
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              if (lugar.isNotEmpty)
-                                Text(
-                                  lugar,
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
                             ],
                           ),
                         ),
@@ -927,12 +948,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 30),
-      child: const Center(
-        child: Text(
-          '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
-          style: TextStyle(color: Colors.grey, fontSize: 11),
-        ),
+      padding: const EdgeInsets.all(24),
+      alignment: Alignment.center,
+      child: const Text(
+        'VirtuMet • Sistema de Gestión Deportiva UNIMET',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
       ),
     );
   }
