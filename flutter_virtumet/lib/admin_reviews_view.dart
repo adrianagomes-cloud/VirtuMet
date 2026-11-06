@@ -38,8 +38,9 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
     );
 
     if (confirm == true) {
+      // CORREGIDO: Apunta a la colección 'reviews' donde el estudiante guarda las valoraciones
       await FirebaseFirestore.instance
-          .collection('resenas')
+          .collection('reviews')
           .doc(docId)
           .delete();
 
@@ -124,7 +125,7 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
                     });
                   },
                   decoration: InputDecoration(
-                    hintText: 'Buscar por deporte o estudiante...',
+                    hintText: 'Buscar por deporte, profesor o correo...',
                     hintStyle:
                         const TextStyle(fontSize: 12, color: Colors.grey),
                     prefixIcon:
@@ -143,10 +144,11 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
           ),
           const SizedBox(height: 28),
 
-          // STREAMBUILDER EN TIEMPO REAL
+          // STREAMBUILDER EN TIEMPO REAL CONECTADO A 'reviews'
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('resenas')
+                .collection('reviews')
+                .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -197,21 +199,19 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
               // FILTRADO LOCAL EN TIEMPO REAL
               final filteredDocs = docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final disciplina = (data['deporte'] ??
-                        data['disciplina'] ??
-                        data['deporteNombre'] ??
-                        '')
+                final disciplina = (data['deporteNombre'] ?? '')
                     .toString()
                     .toLowerCase();
-                final estudiante = (data['estudiante'] ??
-                        data['estudianteNombre'] ??
-                        data['nombreEstudiante'] ??
-                        '')
+                final profesor = (data['profesorNombre'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                final estudianteCorreo = (data['estudianteCorreo'] ?? '')
                     .toString()
                     .toLowerCase();
 
                 return disciplina.contains(_searchQuery) ||
-                    estudiante.contains(_searchQuery);
+                    profesor.contains(_searchQuery) ||
+                    estudianteCorreo.contains(_searchQuery);
               }).toList();
 
               if (filteredDocs.isEmpty) {
@@ -247,39 +247,24 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
                       final doc = filteredDocs[index];
                       final data = doc.data() as Map<String, dynamic>;
 
-                      final String disciplina = (data['deporte'] ??
-                              data['disciplina'] ??
-                              data['deporteNombre'] ??
-                              'Sin disciplina')
-                          .toString();
+                      final String disciplina =
+                          (data['deporteNombre'] ?? 'Sin disciplina')
+                              .toString();
+                      final String profesorNombre =
+                          (data['profesorNombre'] ?? 'Profesor').toString();
+                      final String estudianteCorreo =
+                          (data['estudianteCorreo'] ?? 'Estudiante')
+                              .toString();
 
-                      final String estudiante = (data['estudiante'] ??
-                              data['estudianteNombre'] ??
-                              data['nombreEstudiante'] ??
-                              'Estudiante')
-                          .toString();
-
-                      final String ratingProfesor = (data['ratingProfesor'] ??
-                              data['calificacionProfesor'] ??
-                              '5')
-                          .toString();
-
+                      final String ratingProfesor =
+                          (data['profesorRating'] ?? '5').toString();
                       final String comentarioProfesor =
-                          (data['comentarioProfesor'] ??
-                                  data['resenaProfesor'] ??
-                                  '')
-                              .toString();
+                          (data['profesorComment'] ?? '').toString();
 
-                      final String ratingDeporte = (data['ratingDeporte'] ??
-                              data['calificacionDeporte'] ??
-                              '5')
-                          .toString();
-
+                      final String ratingDeporte =
+                          (data['sportRating'] ?? '5').toString();
                       final String comentarioDeporte =
-                          (data['comentarioDeporte'] ??
-                                  data['resenaDeporte'] ??
-                                  '')
-                              .toString();
+                          (data['sportComment'] ?? '').toString();
 
                       return Container(
                         padding: const EdgeInsets.all(20),
@@ -319,7 +304,7 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Estudiante: $estudiante',
+                                      'Estudiante: $estudianteCorreo',
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey,
@@ -341,9 +326,9 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
                             // SECCIÓN EVALUACIÓN AL PROFESOR
                             Row(
                               children: [
-                                const Text(
-                                  '• Profesor: ',
-                                  style: TextStyle(
+                                Text(
+                                  '• Profesor ($profesorNombre): ',
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
                                     color: AdminReviewsView.blueDark,
@@ -382,7 +367,7 @@ class _AdminReviewsViewState extends State<AdminReviewsView> {
                             Row(
                               children: [
                                 const Text(
-                                  '• Deporte: ',
+                                  '• Deporte / Instalación: ',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,

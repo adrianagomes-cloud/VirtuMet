@@ -7,7 +7,7 @@ import 'admin_users_view.dart';
 import 'admin_fichas_view.dart';
 import 'admin_stats_view.dart';
 import 'admin_events_view.dart';
-import 'admin_reviews_view.dart';
+import 'admin_reviews_view.dart'; // <-- Vista de reseñas del administrador
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -18,15 +18,15 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
-
+  
   // Índice de sección activa:
   // 0: Resumen / Inicio
   // 1: Disciplinas
   // 2: Usuarios
   // 3: Fichas e Inscripciones
-  // 4: Eventos
+  // 4: Eventos (AdminEventsView)
   // 5: Reportes y Avisos
-  // 6: Reseñas
+  // 6: Reseñas (AdminReviewsView)
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -69,7 +69,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ] else if (_selectedIndex == 5) ...[
               const AdminStatsView(),
             ] else if (_selectedIndex == 6) ...[
-              const AdminReviewsView(),
+              const AdminReviewsView(), // <-- Integración exacta de la vista de reseñas
             ] else ...[
               _buildHeroBanner(nombreAdmin),
 
@@ -168,7 +168,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navLink('Fichas e Inscripciones', targetIndex: 3),
           _navLink('Eventos', targetIndex: 4),
           _navLink('Reportes y Avisos', targetIndex: 5),
-          _navLink('Reseñas', targetIndex: 6),
+          _navLink('Reseñas', targetIndex: 6), // <-- Pestaña de Reseñas restaurada en la barra
 
           const Spacer(),
 
@@ -834,37 +834,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.emoji_events_outlined,
-                  color: orangePrimary, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'PRÓXIMOS EVENTOS',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: blueDark,
-                ),
-              ),
-              Spacer(),
-              Text(
-                'EN VIVO',
-                style: TextStyle(
-                  color: Colors.green,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          const Text(
+            'PRÓXIMOS EVENTOS',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 14, color: blueDark),
           ),
           const SizedBox(height: 2),
           const Text(
             'Calendario Institucional UNIMET (En vivo)',
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
-          const Divider(height: 24),
-
+          const SizedBox(height: 16),
+          
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('eventos')
@@ -887,11 +868,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               if (docs.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: Text(
-                      'No hay eventos agendados.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
+                  child: Text(
+                    'No hay eventos agendados.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 );
               }
@@ -903,68 +882,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   final String deporte = (data['deporte'] ?? 'General').toString();
                   final String fechaKey = (data['fechaKey'] ?? '').toString();
                   final String hora = (data['hora'] ?? '').toString();
-                  final String imageUrl = (data['imageUrl'] ??
-                          data['imagen'] ??
-                          data['fotoUrl'] ??
-                          '')
-                      .toString()
-                      .trim();
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: imageUrl.isNotEmpty
-                              ? Image.network(
-                                  imageUrl,
-                                  width: 38,
-                                  height: 38,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 38,
-                                    height: 38,
-                                    color: blueDark,
-                                    child: const Icon(Icons.event,
-                                        color: Colors.white, size: 18),
-                                  ),
-                                )
-                              : Container(
-                                  width: 38,
-                                  height: 38,
-                                  color: blueDark,
-                                  child: const Icon(Icons.event,
-                                      color: Colors.white, size: 18),
-                                ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                titulo,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: blueDark,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                '$deporte • $fechaKey ${hora.isNotEmpty ? "($hora)" : ""}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: orangePrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  String labelFecha = fechaKey;
+                  if (fechaKey.length >= 10) {
+                    final parts = fechaKey.split('-');
+                    if (parts.length == 3) {
+                      labelFecha = '${parts[2]}/${parts[1]}';
+                    }
+                  }
+
+                  return _eventItem(
+                    '$titulo ($deporte)',
+                    '$labelFecha ${hora.isNotEmpty ? '• $hora' : ''}',
+                    orangePrimary,
                   );
                 }).toList(),
               );
@@ -985,51 +915,75 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  Widget _eventItem(String title, String date, Color tagColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(width: 4, height: 16, color: tagColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: blueDark,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            date,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSystemStatusCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: navyHeader,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'ESTADO DEL SISTEMA',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
           const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '99.9%',
+                'ESTADO DEL SISTEMA',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Operativo',
-                style: TextStyle(
-                  color: Colors.greenAccent,
-                  fontSize: 12,
                   fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: blueDark,
                 ),
               ),
+              Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
             ],
           ),
           const SizedBox(height: 8),
           const Text(
-            'Servicios de Firebase Auth y Firestore sincronizados correctamente.',
-            style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
+            'Servicios Firestore y Autenticación operando con normalidad.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
       ),
@@ -1038,91 +992,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 50),
-      color: navyHeader,
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Image.asset(
-                      'lib/assets/Logo.png',
-                      height: 38,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Text(
-                        'VIRTUMET',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
-                      style: TextStyle(
-                          color: Colors.white60, fontSize: 12, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 1),
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'SOPORTE ADMINISTRATIVO',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _footerLinkItem('Manual de Administrador'),
-                        _footerLinkItem('Auditoría del Sistema'),
-                        _footerLinkItem('Contacto DIDE'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 1),
-            ],
-          ),
-          const SizedBox(height: 30),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 16),
-          const Text(
-            '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
-            style: TextStyle(color: Colors.white38, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _footerLinkItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {},
-        child: Text(
-          text,
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
-        ),
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      alignment: Alignment.center,
+      child: const Text(
+        '© 2026 Samán Deportivo · Universidad Metropolitana',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
       ),
     );
   }

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'attendance_page.dart';
 import 'teacher_profile_page.dart';
-import 'reviews_management_view.dart'; // Única adición para conectar las reseñas
+import 'teacher_reviews_view.dart'; // <-- Conexión limpia y directa con las reseñas del profesor
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -277,16 +277,17 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           _navLink('Anuncios'),
           _navLink('Comunidad'),
           
-          // Enlace limpio a Mis Reseñas (sin luces naranjas falsas en el dashboard)
+          // Enlace directo a las calificaciones y reseñas del profesor
           InkWell(
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => TeacherReviewsView(profesorUid: userId),
+                  builder: (_) => const TeacherReviewsView(),
                 ),
               );
             },
+            borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               child: Text(
@@ -872,43 +873,16 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   final data = doc.data() as Map<String, dynamic>;
                   final String titulo =
                       (data['titulo'] ?? 'Evento').toString();
-                  final String deporte =
-                      (data['deporte'] ?? 'General').toString();
-                  final String fechaKey =
-                      (data['fechaKey'] ?? '').toString();
-                  final String hora = (data['hora'] ?? '').toString();
+                  final String fecha =
+                      (data['fechaKey'] ?? data['fecha'] ?? '').toString();
 
-                  String labelFecha = fechaKey;
-                  if (fechaKey.length >= 10) {
-                    final parts = fechaKey.split('-');
-                    if (parts.length == 3) {
-                      labelFecha = '${parts[2]}/${parts[1]}';
-                    }
-                  }
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: bgLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: blueDark,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.event,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
+                        const Icon(Icons.arrow_right, color: orangePrimary, size: 16),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -916,21 +890,19 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                               Text(
                                 titulo,
                                 style: const TextStyle(
-                                  color: blueDark,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '$deporte • $labelFecha ${hora.isNotEmpty ? "($hora)" : ""}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 11,
+                                  fontSize: 12,
+                                  color: blueDark,
                                 ),
                               ),
+                              if (fecha.isNotEmpty)
+                                Text(
+                                  fecha,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -948,11 +920,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(vertical: 24),
       alignment: Alignment.center,
       child: const Text(
-        'VirtuMet • Sistema de Gestión Deportiva UNIMET',
-        style: TextStyle(color: Colors.grey, fontSize: 12),
+        '© 2026 Samán Deportivo · Universidad Metropolitana',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
       ),
     );
   }
