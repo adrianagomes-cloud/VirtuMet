@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_common.dart';
+import 'ficha_estudiante.dart';
 
 /// Plantilla de Ficha Deportiva (requisito "Gestión de Plantillas y Fichas").
 /// El admin define los campos; el estudiante los completa antes de finalizar
@@ -342,6 +343,15 @@ class _InscripcionesList extends StatelessWidget {
             label: Text(estado, style: TextStyle(color: color)),
             side: BorderSide(color: color),
             backgroundColor: Colors.white,
+          ),
+          IconButton(
+            tooltip: 'Ver ficha del estudiante',
+            icon: const Icon(Icons.assignment_ind_outlined, color: kNavy),
+            onPressed: () => mostrarFichaDeEstudiante(
+              context,
+              uid: (m['estudianteId'] ?? '').toString(),
+              nombre: (m['nombreEstudiante'] ?? 'Estudiante').toString(),
+            ),
           ),
           if (!cancelada)
             IconButton(

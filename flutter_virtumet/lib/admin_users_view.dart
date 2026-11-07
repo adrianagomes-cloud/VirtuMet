@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_common.dart';
+import 'ficha_estudiante.dart';
 
 /// Gestión de usuarios (requisito "Gestión de usuarios"):
 ///  - Estudiantes: activar / inactivar (campo `estado`, por defecto 'Activo').
@@ -126,21 +127,40 @@ class _StudentRow extends StatelessWidget {
             child: Icon(Icons.school_outlined, color: Colors.white),
           ),
           const SizedBox(width: 12),
+          // Tocar al estudiante abre su perfil y su ficha
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  userDisplayName(m),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  '${m['correo'] ?? ''}  ·  Carnet ${m['carnet'] ?? '—'}  ·  ${m['carrera'] ?? ''}',
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
-                ),
-              ],
+            child: InkWell(
+              onTap: () => mostrarFichaDeEstudiante(
+                context,
+                uid: doc.id,
+                nombre: userDisplayName(m),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    userDisplayName(m),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '${m['correo'] ?? ''}  ·  Carnet ${m['carnet'] ?? '—'}  ·  ${m['carrera'] ?? ''}',
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
           ),
+          // Ficha deportiva personal del estudiante (solo lectura)
+          OutlinedButton.icon(
+            onPressed: () => mostrarFichaDeEstudiante(
+              context,
+              uid: doc.id,
+              nombre: userDisplayName(m),
+            ),
+            icon: const Icon(Icons.assignment_ind_outlined, size: 18),
+            label: const Text('Ver ficha'),
+          ),
+          const SizedBox(width: 12),
           Text(activo ? 'Activo' : 'Inactivo'),
           Switch(
             value: activo,

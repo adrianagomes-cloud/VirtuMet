@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'precio_utils.dart';
 import 'paypal_checkout.dart';
+import 'ficha_estudiante.dart';
 
 class StudentSportsView extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -550,6 +551,17 @@ class _StudentSportsViewState extends State<StudentSportsView> {
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     PaypalPago? pago;
+
+    // Ficha deportiva personal: se pide solo si el estudiante aún no la tiene
+    // completa. Si cancela el formulario, no se inscribe ni se cobra.
+    final fichaOk = await asegurarFichaCompleta(
+      context,
+      uid: _currentUser?.uid ?? '',
+      nombre: nombreEstudiante,
+      correo: _currentUser?.email ?? '',
+    );
+    if (!fichaOk) return;
+    if (!context.mounted) return;
 
     if (precio > 0) {
       final confirmar = await showDialog<bool>(
