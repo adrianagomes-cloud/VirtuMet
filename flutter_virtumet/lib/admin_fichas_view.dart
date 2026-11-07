@@ -321,6 +321,20 @@ class _InscripcionesList extends StatelessWidget {
                   '${m['correoEstudiante'] ?? ''}  ·  ${m['horario'] ?? ''}  ·  ${m['lugar'] ?? ''}',
                   style: const TextStyle(color: Colors.black54, fontSize: 13),
                 ),
+                if (m['pagado'] == true)
+                  Text(
+                    'Pagado: \$${((m['montoPagado'] ?? m['precio'] ?? 0) as num).toStringAsFixed(2)} ${m['moneda'] ?? 'USD'}'
+                    '  ·  ${m['metodoPago'] ?? 'PayPal'}  ·  Orden ${m['paypalOrderId'] ?? '-'}',
+                    style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                  )
+                else
+                  const Text(
+                    'Sin pago registrado',
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
+                  ),
               ],
             ),
           ),

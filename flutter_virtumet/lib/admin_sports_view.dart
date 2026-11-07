@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'schedule_utils.dart';
+import 'precio_utils.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -25,19 +25,117 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   ];
 
   // ===========================================================================
+  // HORARIO ESTRUCTURADO (días + hora de inicio + hora de fin)
+  // ===========================================================================
+  static const List<String> _diasSemana = [
+    'Lun',
+    'Mar',
+    'Mié',
+    'Jue',
+    'Vie',
+    'Sáb',
+    'Dom',
+  ];
+
+  /// Convierte una hora a texto legible, por ejemplo "3:00 PM".
+  String _fmtHora(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final periodo = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $periodo';
+  }
+
+  /// Convierte una hora a "HH:mm" (24 h) para guardarla en Firestore.
+  String _hhmm(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  /// Lee un texto "HH:mm" guardado en Firestore. Devuelve null si no es válido.
+  TimeOfDay? _parseHora(String? s) {
+    if (s == null) return null;
+    final partes = s.split(':');
+    if (partes.length != 2) return null;
+    final h = int.tryParse(partes[0]);
+    final m = int.tryParse(partes[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  int _aMinutos(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  /// Busca otras disciplinas que coincidan en día y hora con la que se está
+  /// guardando, y que usen el mismo lugar o el mismo entrenador.
+  /// Solo compara disciplinas que ya tengan horario estructurado.
+  Future<List<String>> _buscarChoques({
+    String? excluirId,
+    required String lugar,
+    String? entrenador,
+    required Set<String> dias,
+    required TimeOfDay inicio,
+    required TimeOfDay fin,
+  }) async {
+    final snap = await FirebaseFirestore.instance.collection('deportes').get();
+    final a1 = _aMinutos(inicio);
+    final a2 = _aMinutos(fin);
+    final avisos = <String>[];
+
+    for (final otra in snap.docs) {
+      if (otra.id == excluirId) continue;
+      final m = otra.data();
+      if ((m['estado'] ?? 'Activo') == 'Inactivo') continue;
+
+      final otrosDias =
+          ((m['horarioDias'] as List?) ?? []).map((e) => e.toString()).toSet();
+      final otroInicio = _parseHora(m['horaInicio']?.toString());
+      final otroFin = _parseHora(m['horaFin']?.toString());
+      if (otroInicio == null ||
+          otroFin == null ||
+          otrosDias.intersection(dias).isEmpty) {
+        continue;
+      }
+
+      final b1 = _aMinutos(otroInicio);
+      final b2 = _aMinutos(otroFin);
+      final seSolapan = a1 < b2 && b1 < a2;
+      if (!seSolapan) continue;
+
+      final nombreOtra = (m['nombre'] ?? 'otra disciplina').toString();
+      final otroLugar = (m['lugar'] ?? '').toString().trim();
+      if (lugar.isNotEmpty && otroLugar.toLowerCase() == lugar.toLowerCase()) {
+        avisos.add('"$nombreOtra" usa el mismo lugar ($otroLugar) a esa hora.');
+      }
+      if (entrenador != null &&
+          entrenador != 'Sin Entrenador' &&
+          (m['entrenador'] ?? '').toString() == entrenador) {
+        avisos.add('El entrenador ya da "$nombreOtra" a esa hora.');
+      }
+    }
+    return avisos;
+  }
+
+  // ===========================================================================
   // CREAR / EDITAR DISCIPLINA (MEDIANTE ENLACE / URL)
   // ===========================================================================
   void _openDisciplineForm({DocumentSnapshot? doc}) {
     final isEditing = doc != null;
-    final data = isEditing
-        ? (doc.data() as Map<String, dynamic>)
-        : <String, dynamic>{};
+    final data = isEditing ? (doc.data() as Map<String, dynamic>) : {};
 
     final codigoCtrl = TextEditingController(text: data['codigo'] ?? '');
     final nombreCtrl = TextEditingController(text: data['nombre'] ?? '');
     final cupoMaxCtrl = TextEditingController(
         text: (data['cuposMaximos'] ?? data['cupoMaximo'] ?? 20).toString());
+    // Horario estructurado: días + hora de inicio + hora de fin.
+    final String horarioPrevio = (data['horario'] ?? '').toString();
+    final Set<String> diasSel = ((data['horarioDias'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toSet();
+    TimeOfDay? horaIni = _parseHora(data['horaInicio']?.toString());
+    TimeOfDay? horaFin = _parseHora(data['horaFin']?.toString());
+    String? horarioError;
     final lugarCtrl = TextEditingController(text: data['lugar'] ?? '');
+    final precioCtrl = TextEditingController(
+        text: precioATexto(precioDeDisciplina(Map<String, dynamic>.from(data))));
+    String? precioError;
+    String? cupoError;
     final imageCtrl = TextEditingController(
         text: data['imageUrl'] ??
             'https://images.unsplash.com/photo-1517649763962-0c623266200a?auto=format&fit=crop&w=800&q=80');
@@ -45,13 +143,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     String categoriaVal = data['categoria'] ?? 'De equipo';
     String estadoVal = data['estado'] ?? 'Activo';
     String? entrenadorVal = data['entrenador'] as String?;
-    final existingSchedule = ScheduleData.fromMap(data);
-    final selectedDays = <int>{...existingSchedule.days};
-    int startMinutes = existingSchedule.startMinutes >= 0
-        ? existingSchedule.startMinutes
-        : 17 * 60;
-    int endMinutes =
-        existingSchedule.endMinutes > 0 ? existingSchedule.endMinutes : 19 * 60;
 
     showDialog(
       context: context,
@@ -112,6 +203,18 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                           ),
                         ],
                       ),
+                      if (cupoError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              cupoError!,
+                              style: const TextStyle(
+                                  color: Colors.red, fontSize: 12),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       _buildFormField(
                         label: 'Nombre de la Disciplina',
@@ -119,6 +222,24 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         hint: 'EJ. Fútbol Sala - Mayores',
                         icon: Icons.sports_soccer,
                       ),
+                      const SizedBox(height: 12),
+                      _buildFormField(
+                        label:
+                            'Precio de inscripción (USD) - mínimo ${formatPrecio(kPrecioMinimo)}',
+                        controller: precioCtrl,
+                        hint: 'EJ. 50',
+                        icon: Icons.attach_money,
+                        isNumber: true,
+                      ),
+                      if (precioError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            precioError!,
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 12),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -307,27 +428,126 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _buildScheduleEditor(
-                        selectedDays: selectedDays,
-                        startMinutes: startMinutes,
-                        endMinutes: endMinutes,
-                        onDaysChanged: (day, selected) {
-                          setDialogState(() {
-                            selected ? selectedDays.add(day) : selectedDays.remove(day);
-                          });
-                        },
-                        onStartChanged: (value) =>
-                            setDialogState(() => startMinutes = value),
-                        onEndChanged: (value) =>
-                            setDialogState(() => endMinutes = value),
-                      ),
-                      const SizedBox(height: 12),
                       _buildFormField(
                         label: 'Lugar / Instalación',
                         controller: lugarCtrl,
                         hint: 'EJ. Cancha Techada 1',
                         icon: Icons.location_on,
                       ),
+                      const SizedBox(height: 12),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Horario (elige los días y las horas)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _diasSemana.map((d) {
+                            return FilterChip(
+                              label: Text(d),
+                              selected: diasSel.contains(d),
+                              selectedColor:
+                                  orangePrimary.withValues(alpha: 0.2),
+                              onSelected: (v) {
+                                setDialogState(() {
+                                  if (v) {
+                                    diasSel.add(d);
+                                  } else {
+                                    diasSel.remove(d);
+                                  }
+                                  horarioError = null;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final t = await showTimePicker(
+                                  context: context,
+                                  initialTime: horaIni ??
+                                      const TimeOfDay(hour: 8, minute: 0),
+                                );
+                                if (t != null) {
+                                  setDialogState(() {
+                                    horaIni = t;
+                                    horarioError = null;
+                                  });
+                                }
+                              },
+                              icon: const Icon(Icons.access_time, size: 18),
+                              label: Text(horaIni == null
+                                  ? 'Hora de inicio'
+                                  : 'Inicio: ${_fmtHora(horaIni!)}'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final t = await showTimePicker(
+                                  context: context,
+                                  initialTime: horaFin ??
+                                      const TimeOfDay(hour: 10, minute: 0),
+                                );
+                                if (t != null) {
+                                  setDialogState(() {
+                                    horaFin = t;
+                                    horarioError = null;
+                                  });
+                                }
+                              },
+                              icon: const Icon(Icons.access_time_filled,
+                                  size: 18),
+                              label: Text(horaFin == null
+                                  ? 'Hora de fin'
+                                  : 'Fin: ${_fmtHora(horaFin!)}'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (horarioPrevio.isNotEmpty &&
+                          diasSel.isEmpty &&
+                          horaIni == null &&
+                          horaFin == null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Horario actual: $horarioPrevio. Elige días y horas solo si quieres reemplazarlo.',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.black45),
+                            ),
+                          ),
+                        ),
+                      if (horarioError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              horarioError!,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.red),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       _buildFormField(
                         label: 'URL Imagen Promocional',
@@ -355,17 +575,109 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         horizontal: 20, vertical: 12),
                   ),
                   onPressed: () async {
-                    if (nombreCtrl.text.trim().isEmpty ||
-                        selectedDays.isEmpty ||
-                        endMinutes <= startMinutes) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Completa el nombre, al menos un día y un rango de horas válido.'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
+                    if (nombreCtrl.text.trim().isEmpty) return;
+
+                    // El precio de cada disciplina debe ser de al menos 50 USD.
+                    final double? precio = double.tryParse(
+                        precioCtrl.text.trim().replaceAll(',', '.'));
+                    if (precio == null || precio < kPrecioMinimo) {
+                      setDialogState(() => precioError =
+                          'El precio debe ser un número de al menos ${formatPrecio(kPrecioMinimo)} USD.');
                       return;
+                    }
+                    if (precioError != null) {
+                      setDialogState(() => precioError = null);
+                    }
+
+                    // CUPO MÁXIMO: al menos 1 y nunca menor que los inscritos
+                    // activos que ya tiene la disciplina.
+                    final int cupoNuevo =
+                        int.tryParse(cupoMaxCtrl.text.trim()) ?? 0;
+                    if (cupoNuevo < 1) {
+                      setDialogState(() =>
+                          cupoError = 'El cupo máximo debe ser al menos 1.');
+                      return;
+                    }
+                    if (isEditing) {
+                      final activos = await _contarInscritosActivos(doc.id);
+                      if (!ctx.mounted) return;
+                      if (cupoNuevo < activos) {
+                        setDialogState(() => cupoError =
+                            'Hay $activos inscritos activos: el cupo no puede ser menor.');
+                        return;
+                      }
+                    }
+                    if (cupoError != null) {
+                      setDialogState(() => cupoError = null);
+                    }
+
+                    // HORARIO: si es disciplina nueva (o el admin tocó días/horas)
+                    // se exige día(s) + hora de inicio + hora de fin válidas.
+                    // Si edita una disciplina antigua sin tocar el horario,
+                    // se conserva el texto que ya tenía.
+                    final bool tocoHorario = diasSel.isNotEmpty ||
+                        horaIni != null ||
+                        horaFin != null;
+                    final bool horarioEstructurado =
+                        tocoHorario || !isEditing || horarioPrevio.isEmpty;
+                    String horarioTexto = horarioPrevio;
+                    final diasOrdenados =
+                        _diasSemana.where(diasSel.contains).toList();
+
+                    if (horarioEstructurado) {
+                      if (diasSel.isEmpty || horaIni == null || horaFin == null) {
+                        setDialogState(() => horarioError =
+                            'Elige al menos un día, la hora de inicio y la hora de fin.');
+                        return;
+                      }
+                      if (_aMinutos(horaFin!) <= _aMinutos(horaIni!)) {
+                        setDialogState(() => horarioError =
+                            'La hora de fin debe ser posterior a la hora de inicio.');
+                        return;
+                      }
+                      horarioTexto =
+                          '${diasOrdenados.join(' / ')} · ${_fmtHora(horaIni!)} - ${_fmtHora(horaFin!)}';
+
+                      // AVISO DE CHOQUE DE HORARIOS (mismo lugar o mismo entrenador)
+                      final choques = await _buscarChoques(
+                        excluirId: doc?.id,
+                        lugar: lugarCtrl.text.trim(),
+                        entrenador: entrenadorVal,
+                        dias: diasSel,
+                        inicio: horaIni!,
+                        fin: horaFin!,
+                      );
+                      if (!ctx.mounted) return;
+                      if (choques.isNotEmpty) {
+                        final guardarIgual = await showDialog<bool>(
+                          context: ctx,
+                          builder: (c2) => AlertDialog(
+                            title: const Text('Posible choque de horarios'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: choques
+                                  .map((a) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 6),
+                                        child: Text('• $a'),
+                                      ))
+                                  .toList(),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(c2, false),
+                                child: const Text('Corregir horario'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(c2, true),
+                                child: const Text('Guardar de todos modos'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (guardarIgual != true) return;
+                      }
                     }
 
                     // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO PARA EVITAR DESVINCULACIONES
@@ -393,20 +705,21 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                       }
                     }
 
-                    final schedule = ScheduleData(
-                      days: selectedDays.toList()..sort(),
-                      startMinutes: startMinutes,
-                      endMinutes: endMinutes,
-                    );
                     final payload = {
                       'codigo': codigoCtrl.text.trim().toUpperCase(),
                       'nombre': nombreCtrl.text.trim(),
                       'cupoMaximo': int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
                       'cuposMaximos':
                           int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
-                      'horario': schedule.displayText,
-                      ...schedule.toMap(),
+                      'horario': horarioTexto,
+                      if (horarioEstructurado) ...{
+                        'horarioDias': diasOrdenados,
+                        'horaInicio': _hhmm(horaIni!),
+                        'horaFin': _hhmm(horaFin!),
+                      },
                       'lugar': lugarCtrl.text.trim(),
+                      'precio': precio,
+                      'moneda': 'USD',
                       'entrenador': entrenadorVal ?? 'Sin Entrenador',
                       'entrenadorUid': selectedEntrenadorUid,
                       'categoria': categoriaVal,
@@ -443,77 +756,44 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     );
   }
 
-  Widget _buildScheduleEditor({
-    required Set<int> selectedDays,
-    required int startMinutes,
-    required int endMinutes,
-    required void Function(int day, bool selected) onDaysChanged,
-    required ValueChanged<int> onStartChanged,
-    required ValueChanged<int> onEndChanged,
-  }) {
-    Future<void> pickTime({
-      required int initialMinutes,
-      required ValueChanged<int> onChanged,
-    }) async {
-      final time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay(
-          hour: initialMinutes ~/ 60,
-          minute: initialMinutes % 60,
-        ),
-      );
-      if (time != null) onChanged(time.hour * 60 + time.minute);
-    }
+  /// Cuenta las inscripciones activas (no canceladas) de una disciplina,
+  /// leyendo la colección `inscripciones` (más fiable que el contador guardado).
+  Future<int> _contarInscritosActivos(String deporteId) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('inscripciones')
+        .where('deporteId', isEqualTo: deporteId)
+        .get();
+    return snap.docs
+        .where((d) => (d.data()['estado'] ?? 'Confirmada') != 'Cancelada')
+        .length;
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Horario estructurado',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 12, color: blueDark)),
-        const SizedBox(height: 6),
-        const Text('Selecciona los días y el rango de entrenamiento.',
-            style: TextStyle(fontSize: 11, color: Colors.black54)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 4,
-          children: weekdayNames.entries.map((entry) {
-            return FilterChip(
-              label: Text(entry.value),
-              selected: selectedDays.contains(entry.key),
-              onSelected: (selected) => onDaysChanged(entry.key, selected),
-              selectedColor: orangePrimary.withValues(alpha: 0.2),
-              checkmarkColor: orangePrimary,
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => pickTime(
-                    initialMinutes: startMinutes, onChanged: onStartChanged),
-                icon: const Icon(Icons.login, size: 16),
-                label: Text('Inicio: ${formatMinutes(startMinutes)}'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => pickTime(
-                    initialMinutes: endMinutes, onChanged: onEndChanged),
-                icon: const Icon(Icons.logout, size: 16),
-                label: Text('Fin: ${formatMinutes(endMinutes)}'),
-              ),
+  Future<void> _deleteDiscipline(String docId, String nombre) async {
+    // No se puede eliminar una disciplina que todavía tiene estudiantes
+    // inscritos: sus inscripciones quedarían apuntando a algo que no existe.
+    final activos = await _contarInscritosActivos(docId);
+    if (!mounted) return;
+    if (activos > 0) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('No se puede eliminar'),
+          content: Text(
+              '"$nombre" tiene $activos inscripción(es) activa(s). '
+              'Cancela las inscripciones desde "Fichas e Inscripciones" '
+              'o cambia el estado de la disciplina a Inactivo.'),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
             ),
           ],
         ),
-      ],
-    );
-  }
+      );
+      return;
+    }
 
-  void _deleteDiscipline(String docId, String nombre) {
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -820,6 +1100,9 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                   const SizedBox(height: 6),
                   _iconDetailRow(
                       Icons.person_outline_rounded, 'Entrenador: $entrenador'),
+                  const SizedBox(height: 6),
+                  _iconDetailRow(Icons.attach_money_rounded,
+                      'Precio: ${formatPrecio(precioDeDisciplina(data))} USD'),
                   const Spacer(),
                   Row(
                     children: [
