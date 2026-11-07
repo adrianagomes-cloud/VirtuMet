@@ -54,6 +54,10 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       stream: FirebaseFirestore.instance.collection('users').snapshots(),
       builder: (context, userSnapshot) {
         String nombreEstudiante = 'Estudiante UNIMET';
+        // Solo los estudiantes pueden inscribirse y pagar: el admin
+        // (correo fijo) y los entrenadores quedan bloqueados.
+        bool puedeInscribirse =
+            userEmail.toLowerCase() != 'admin@correo.unimet.ve';
 
         if (userSnapshot.hasData && userSnapshot.data!.docs.isNotEmpty) {
           final matches = userSnapshot.data!.docs.where((doc) {
@@ -73,6 +77,8 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                     'Estudiante UNIMET')
                 .toString()
                 .trim();
+            final String rol = (data['rol'] ?? 'Estudiante').toString();
+            if (rol == 'Admin' || rol == 'Entrenador') puedeInscribirse = false;
           }
         }
 
@@ -307,6 +313,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             doc: filteredSports[index],
                             misInscripciones: misInscripciones,
                             nombreEstudiante: nombreEstudiante,
+                            puedeInscribirse: puedeInscribirse,
                           );
                         },
                       );
@@ -325,6 +332,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     required DocumentSnapshot doc,
     required List<DocumentSnapshot> misInscripciones,
     required String nombreEstudiante,
+    required bool puedeInscribirse,
   }) {
     final String id = doc.id;
     final data = doc.data() as Map<String, dynamic>;
@@ -482,7 +490,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: (yaInscrito || cuposDisponibles <= 0)
+                            onPressed: (!puedeInscribirse || yaInscrito || cuposDisponibles <= 0)
                                 ? null
                                 : () => _pagarEInscribir(
                                       context: context,
@@ -494,7 +502,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                                       precio: precioDeDisciplina(data),
                                     ),
                             child: Text(
-                              yaInscrito
+                              !puedeInscribirse
+                                  ? 'Solo estudiantes'
+                                  : yaInscrito
                                   ? 'Inscrito'
                                   : (cuposDisponibles > 0
                                       ? 'Inscribirme'

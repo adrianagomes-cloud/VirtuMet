@@ -771,8 +771,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _alertItem('Revisión urgente de ficha: Estudiante V-28123456'),
-          _alertItem('Solicitud de cancha techada pendiente por aprobar'),
+          _buildAlertasReales(),
           const SizedBox(height: 14),
           InkWell(
             onTap: () => setState(() => _selectedIndex = 5),
@@ -787,6 +786,72 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Avisos críticos calculados en tiempo real desde Firestore (sin textos
+  /// fijos): disciplinas fuera de servicio, cupos agotados o casi llenos
+  /// (>= 80 %) e inscripciones activas sin pago registrado. Las inscripciones
+  /// canceladas no cuentan. Muestra como máximo 4 avisos.
+  Widget _buildAlertasReales() {
+    final db = FirebaseFirestore.instance;
+    return StreamBuilder<QuerySnapshot>(
+      stream: db.collection('deportes').snapshots(),
+      builder: (context, sportsSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: db.collection('inscripciones').snapshots(),
+          builder: (context, inscSnap) {
+            if (!sportsSnap.hasData || !inscSnap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Cargando avisos...',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              );
+            }
+
+            // Inscritos activos por disciplina y total sin pago
+            final Map<String, int> porDeporte = {};
+            int sinPago = 0;
+            for (final d in inscSnap.data!.docs) {
+              final m = d.data() as Map<String, dynamic>;
+              if (m['estado'] == 'Cancelada') continue;
+              if (m['pagado'] != true) sinPago++;
+              final id = m['deporteId']?.toString();
+              if (id != null) porDeporte[id] = (porDeporte[id] ?? 0) + 1;
+            }
+
+            final List<String> avisos = [];
+            for (final d in sportsSnap.data!.docs) {
+              final m = d.data() as Map<String, dynamic>;
+              final String nombre = (m['nombre'] ?? 'Disciplina').toString();
+              final String estado = (m['estado'] ?? 'Activo').toString();
+              final int cupo =
+                  ((m['cuposMaximos'] ?? m['cupoMaximo'] ?? 0) as num).toInt();
+              final int inscritos = porDeporte[d.id] ?? 0;
+
+              if (estado != 'Activo') {
+                avisos.add('$nombre está en estado: $estado');
+              } else if (cupo > 0 && inscritos >= cupo) {
+                avisos.add('Cupo agotado en $nombre ($inscritos/$cupo)');
+              } else if (cupo > 0 && inscritos / cupo >= 0.8) {
+                avisos.add('Cupo casi lleno en $nombre ($inscritos/$cupo)');
+              }
+            }
+            if (sinPago > 0) {
+              avisos.add('$sinPago inscripción(es) activa(s) sin pago registrado');
+            }
+
+            if (avisos.isEmpty) {
+              return _alertItem('Sin avisos críticos por ahora.');
+            }
+            return Column(
+              children: [for (final a in avisos.take(4)) _alertItem(a)],
+            );
+          },
+        );
+      },
     );
   }
 
