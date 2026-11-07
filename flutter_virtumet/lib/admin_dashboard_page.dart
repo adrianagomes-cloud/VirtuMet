@@ -8,6 +8,7 @@ import 'admin_fichas_view.dart';
 import 'admin_stats_view.dart';
 import 'admin_events_view.dart';
 import 'admin_reviews_view.dart'; // <-- Vista de reseñas del administrador
+import 'admin_announcements_view.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -25,7 +26,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // 2: Usuarios
   // 3: Fichas e Inscripciones
   // 4: Eventos (AdminEventsView)
-  // 5: Reportes y Avisos
+  // 5: Reportes, 6: Reseñas, 7: Avisos
   // 6: Reseñas (AdminReviewsView)
   int _selectedIndex = 0;
   String _searchQuery = '';
@@ -70,6 +71,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const AdminStatsView(),
             ] else if (_selectedIndex == 6) ...[
               const AdminReviewsView(), // <-- Integración exacta de la vista de reseñas
+            ] else if (_selectedIndex == 7) ...[
+              const AdminAnnouncementsView(),
             ] else ...[
               _buildHeroBanner(nombreAdmin),
 
@@ -100,8 +103,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    _buildCriticalAlertsCard(),
-                                    const SizedBox(height: 24),
                                     _buildUpcomingEventsCard(),
                                     const SizedBox(height: 24),
                                     _buildSystemStatusCard(),
@@ -169,6 +170,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navLink('Eventos', targetIndex: 4),
           _navLink('Reportes y Avisos', targetIndex: 5),
           _navLink('Reseñas', targetIndex: 6), // <-- Pestaña de Reseñas restaurada en la barra
+          _navLink('Avisos', targetIndex: 7),
 
           const Spacer(),
 
@@ -737,77 +739,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 fontWeight: FontWeight.bold,
                 color: blueDark,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCriticalAlertsCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: blueDark,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded,
-                  color: orangePrimary, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'AVISOS CRÍTICOS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _alertItem('Revisión urgente de ficha: Estudiante V-28123456'),
-          _alertItem('Solicitud de cancha techada pendiente por aprobar'),
-          const SizedBox(height: 14),
-          InkWell(
-            onTap: () => setState(() => _selectedIndex = 5),
-            child: const Text(
-              'VER TODAS LAS ALERTAS >',
-              style: TextStyle(
-                color: orangePrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _alertItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: orangePrimary,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
         ],

@@ -5,6 +5,7 @@ import 'login_page.dart';
 import 'student_sports_view.dart';
 import 'student_profile_page.dart';
 import 'student_review_form_view.dart';
+import 'student_announcements_view.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -16,7 +17,7 @@ class StudentDashboardPage extends StatefulWidget {
 class _StudentDashboardPageState extends State<StudentDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 4: Mis Reseñas
+  // 0: Inicio, 1: Catálogo, 2: Actividades, 3: Comunidad, 4: Reseñas, 5: Avisos
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -145,8 +146,14 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         key: const ValueKey(1),
                         onBackToHome: () => setState(() => _selectedIndex = 0),
                       )
+                    else if (_selectedIndex == 2)
+                      _buildActivitiesView(misInscripciones, nombreEstudiante)
+                    else if (_selectedIndex == 3)
+                      _buildCommunityView()
                     else if (_selectedIndex == 4)
                       _buildStudentReviewsView(authUid)
+                    else if (_selectedIndex == 5)
+                      const StudentAnnouncementsView()
                     else
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +243,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           _navLink('Mis Actividades', targetIndex: 2),
           _navLink('Comunidad', targetIndex: 3),
           _navLink('Mis Reseñas', targetIndex: 4),
+          _navLink('Avisos', targetIndex: 5),
           const Spacer(),
           Row(
             children: [
@@ -325,6 +333,110 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActivitiesView(
+      List<DocumentSnapshot> enrollments, String studentName) {
+    return Container(
+      width: double.infinity,
+      color: bgLight,
+      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
+      child: _buildMainContent(enrollments, studentName),
+    );
+  }
+
+  Widget _buildCommunityView() {
+    return Container(
+      width: double.infinity,
+      color: bgLight,
+      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Comunidad Deportiva',
+              style: TextStyle(
+                  color: blueDark, fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Eventos y opiniones de la comunidad universitaria.',
+              style: TextStyle(color: textGrey, fontSize: 13)),
+          const SizedBox(height: 24),
+          const Text('Próximos eventos',
+              style: TextStyle(
+                  color: blueDark, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('eventos')
+                .orderBy('fechaTimestamp')
+                .limit(5)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const CircularProgressIndicator();
+              }
+              final events = snapshot.data!.docs;
+              if (events.isEmpty) {
+                return const Text('No hay eventos publicados por ahora.',
+                    style: TextStyle(color: textGrey));
+              }
+              return Column(
+                children: events.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.event, color: orangePrimary),
+                      title: Text((data['titulo'] ?? 'Evento').toString()),
+                      subtitle: Text(
+                          '${data['fechaKey'] ?? ''} · ${data['hora'] ?? ''} · ${data['lugar'] ?? ''}'),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          const Text('Opiniones recientes',
+              style: TextStyle(
+                  color: blueDark, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('reviews')
+                .orderBy('createdAt', descending: true)
+                .limit(6)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const CircularProgressIndicator();
+              }
+              final reviews = snapshot.data!.docs;
+              if (reviews.isEmpty) {
+                return const Text('Todavía no hay opiniones publicadas.',
+                    style: TextStyle(color: textGrey));
+              }
+              return Column(
+                children: reviews.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final comment = (data['sportComment'] ??
+                          data['profesorComment'] ??
+                          'Sin comentario')
+                      .toString();
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.rate_review_outlined,
+                          color: orangePrimary),
+                      title: Text(
+                          (data['deporteNombre'] ?? 'Disciplina').toString()),
+                      subtitle: Text(comment),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -427,6 +539,110 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   padding: EdgeInsets.symmetric(vertical: 50),
                   child: Center(
                     child: CircularProgressIndicator(color: orangePrimary),
+                  ),
+                );
+              }
+
+              Widget _buildActivitiesView(
+                  List<DocumentSnapshot> enrollments, String studentName) {
+                return Container(
+                  width: double.infinity,
+                  color: bgLight,
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
+                  child: _buildMainContent(enrollments, studentName),
+                );
+              }
+
+              Widget _buildCommunityView() {
+                return Container(
+                  width: double.infinity,
+                  color: bgLight,
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Comunidad Deportiva',
+                          style: TextStyle(
+                              color: blueDark, fontSize: 24, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      const Text('Eventos y opiniones de la comunidad universitaria.',
+                          style: TextStyle(color: textGrey, fontSize: 13)),
+                      const SizedBox(height: 24),
+                      const Text('Próximos eventos',
+                          style: TextStyle(
+                              color: blueDark, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('eventos')
+                            .orderBy('fechaTimestamp')
+                            .limit(5)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return const CircularProgressIndicator();
+                          }
+                          final events = snapshot.data!.docs;
+                          if (events.isEmpty) {
+                            return const Text('No hay eventos publicados por ahora.',
+                                style: TextStyle(color: textGrey));
+                          }
+                          return Column(
+                            children: events.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              return Card(
+                                child: ListTile(
+                                  leading: const Icon(Icons.event, color: orangePrimary),
+                                  title: Text((data['titulo'] ?? 'Evento').toString()),
+                                  subtitle: Text(
+                                      '${data['fechaKey'] ?? ''} · ${data['hora'] ?? ''} · ${data['lugar'] ?? ''}'),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Opiniones recientes',
+                          style: TextStyle(
+                              color: blueDark, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('reviews')
+                            .orderBy('createdAt', descending: true)
+                            .limit(6)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return const CircularProgressIndicator();
+                          }
+                          final reviews = snapshot.data!.docs;
+                          if (reviews.isEmpty) {
+                            return const Text('Todavía no hay opiniones publicadas.',
+                                style: TextStyle(color: textGrey));
+                          }
+                          return Column(
+                            children: reviews.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final comment = (data['sportComment'] ??
+                                      data['profesorComment'] ??
+                                      'Sin comentario')
+                                  .toString();
+                              return Card(
+                                child: ListTile(
+                                  leading: const Icon(Icons.rate_review_outlined,
+                                      color: orangePrimary),
+                                  title: Text(
+                                      (data['deporteNombre'] ?? 'Disciplina').toString()),
+                                  subtitle: Text(comment),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 );
               }
@@ -868,46 +1084,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildCriticalAlertsCard(),
-        const SizedBox(height: 24),
         _buildUpcomingEventsCard(),
       ],
-    );
-  }
-
-  Widget _buildCriticalAlertsCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: blueDark, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
-              SizedBox(width: 8),
-              Text('AVISOS CRÍTICOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _alertItem('Solicitud de cambio de horario: Voleibol'),
-          _alertItem('Mantenimiento Cancha 1: Mañana 08:00'),
-        ],
-      ),
-    );
-  }
-
-  Widget _alertItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(width: 6, height: 6, decoration: const BoxDecoration(color: orangePrimary, shape: BoxShape.circle)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12))),
-        ],
-      ),
     );
   }
 

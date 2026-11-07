@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'schedule_utils.dart';
 
 class StudentSportsView extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -41,6 +42,180 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       return Icons.sports_tennis;
     }
     return Icons.fitness_center;
+  }
+
+  Future<Map<String, dynamic>?> _showSimulatedPayment(
+      BuildContext context, String sportName) async {
+    String method = 'PayPal (simulado)';
+    final cardController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Confirmar reserva'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Reserva de $sportName. Pago académico simulado.'),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: method,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'PayPal (simulado)', child: Text('PayPal (simulado)')),
+                    DropdownMenuItem(
+                        value: 'Tarjeta (simulada)',
+                        child: Text('Tarjeta débito/crédito (simulada)')),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => method = value ?? method),
+                ),
+                if (method == 'Tarjeta (simulada)') ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: cardController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Últimos 4 dígitos (solo demostración)'),
+                    validator: (value) => value == null || value.length != 4
+                        ? 'Escribe exactamente 4 dígitos'
+                        : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () {
+                if (method == 'Tarjeta (simulada)' &&
+                    !formKey.currentState!.validate()) return;
+                Navigator.pop(dialogContext, {
+                  'metodo': method,
+                  'referencia': 'SIM-${DateTime.now().millisecondsSinceEpoch}',
+                });
+              },
+              child: const Text('Aprobar simulación'),
+            ),
+          ],
+        ),
+      ),
+    );
+    cardController.dispose();
+    return result;
+  }
+
+  Future<void> _enroll({
+    required BuildContext context,
+    required String sportId,
+    required String sportName,
+    required String horario,
+    required String lugar,
+    required ScheduleData schedule,
+    required String nombreEstudiante,
+    required List<DocumentSnapshot> currentEnrollments,
+  }) async {
+    if (!schedule.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Esta disciplina aún no tiene un horario estructurado válido.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    for (final enrollment in currentEnrollments) {
+      final data = enrollment.data() as Map<String, dynamic>;
+      final existingSchedule = ScheduleData.fromMap(data);
+      if (schedulesOverlap(schedule, existingSchedule)) {
+        final existingName =
+            (data['nombreDeporte'] ?? 'otra disciplina').toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(scheduleConflictMessage(
+              sportName, existingName, schedule, existingSchedule)),
+          backgroundColor: Colors.redAccent,
+        ));
+        return;
+      }
+    }
+
+    final payment = await _showSimulatedPayment(context, sportName);
+    if (payment == null || !context.mounted) return;
+
+    final uid = _currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+    final db = FirebaseFirestore.instance;
+    final enrollmentRef = db.collection('inscripciones').doc('${uid}_$sportId');
+    final sportRef = db.collection('deportes').doc(sportId);
+    final paymentRef = db.collection('pagos').doc();
+
+    try {
+      await db.runTransaction((transaction) async {
+        final sportSnapshot = await transaction.get(sportRef);
+        final enrollmentSnapshot = await transaction.get(enrollmentRef);
+        if (enrollmentSnapshot.exists) {
+          throw StateError('Ya estás inscrito en esta disciplina.');
+        }
+        final sportData = sportSnapshot.data() ?? {};
+        final max = ((sportData['cuposMaximos'] ??
+                    sportData['cupoMaximo'] ??
+                    0) as num)
+            .toInt();
+        final occupied = ((sportData['cuposInscritos'] ?? 0) as num).toInt();
+        if (occupied >= max) throw StateError('La disciplina ya no tiene cupos.');
+
+        transaction.set(enrollmentRef, {
+          'deporteId': sportId,
+          'nombreDeporte': sportName,
+          'estudianteId': uid,
+          'correoEstudiante': _currentUser?.email,
+          'nombreEstudiante': nombreEstudiante,
+          'horario': horario,
+          'lugar': lugar,
+          ...schedule.toMap(),
+          'fechaInscripcion': FieldValue.serverTimestamp(),
+          'estado': 'Confirmada',
+          'pagoId': paymentRef.id,
+        });
+        transaction.update(sportRef, {
+          'cuposInscritos': FieldValue.increment(1),
+        });
+        transaction.set(paymentRef, {
+          'usuarioUid': uid,
+          'inscripcionId': enrollmentRef.id,
+          'deporteId': sportId,
+          'metodo': payment['metodo'],
+          'referencia': payment['referencia'],
+          'monto': 0,
+          'moneda': 'N/A',
+          'estado': 'Aprobado',
+          'simulado': true,
+          'creadoEn': FieldValue.serverTimestamp(),
+        });
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('¡Inscripción y pago simulado aprobados para $sportName!'),
+          backgroundColor: Colors.green,
+        ));
+      }
+    } on StateError catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(error.message), backgroundColor: Colors.redAccent));
+      }
+    } on FirebaseException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('No se pudo completar la inscripción: ${error.message}'),
+            backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   @override
@@ -329,6 +504,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     final String codigo = data['codigo'] ?? 'DE-001';
     final String nombre = data['nombre'] ?? 'Sin Nombre';
     final String horario = data['horario'] ?? 'Por definir';
+    final schedule = ScheduleData.fromMap(data);
+    final String horarioMostrado =
+        schedule.isValid ? schedule.displayText : horario;
     final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
     final String entrenador = data['entrenador'] ?? 'Profesor Asignado';
     final String imageUrl = data['imageUrl'] ?? '';
@@ -427,7 +605,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 10),
-                      _detailRow(Icons.access_time_rounded, horario),
+                      _detailRow(Icons.access_time_rounded, horarioMostrado),
                       const SizedBox(height: 4),
                       _detailRow(Icons.location_on_outlined, lugar),
                       const SizedBox(height: 4),
@@ -472,42 +650,16 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             ),
                             onPressed: (yaInscrito || cuposDisponibles <= 0)
                                 ? null
-                                : () async {
-                                    // Escritura transaccional en Firestore
-                                    await FirebaseFirestore.instance
-                                        .collection('inscripciones')
-                                        .add({
-                                      'deporteId': id,
-                                      'nombreDeporte': nombre,
-                                      'estudianteId': _currentUser?.uid,
-                                      'correoEstudiante': _currentUser?.email,
-                                      'nombreEstudiante': nombreEstudiante,
-                                      'horario': horario,
-                                      'lugar': lugar,
-                                      'fechaInscripcion':
-                                          FieldValue.serverTimestamp(),
-                                      'estado': 'Confirmada',
-                                    });
-
-                                    await FirebaseFirestore.instance
-                                        .collection('deportes')
-                                        .doc(id)
-                                        .update({
-                                      'cuposInscritos':
-                                          FieldValue.increment(1),
-                                    });
-
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                              '¡Te has inscrito exitosamente en $nombre!'),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
-                                    }
-                                  },
+                                : () => _enroll(
+                                    context: context,
+                                    sportId: id,
+                                    sportName: nombre,
+                                    horario: horarioMostrado,
+                                    lugar: lugar,
+                                    schedule: schedule,
+                                    nombreEstudiante: nombreEstudiante,
+                                    currentEnrollments: misInscripciones,
+                                  ),
                             child: Text(
                               yaInscrito
                                   ? 'Inscrito'

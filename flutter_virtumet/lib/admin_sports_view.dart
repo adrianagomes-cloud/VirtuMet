@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'schedule_utils.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -28,13 +29,14 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   // ===========================================================================
   void _openDisciplineForm({DocumentSnapshot? doc}) {
     final isEditing = doc != null;
-    final data = isEditing ? (doc.data() as Map<String, dynamic>) : {};
+    final data = isEditing
+        ? (doc.data() as Map<String, dynamic>)
+        : <String, dynamic>{};
 
     final codigoCtrl = TextEditingController(text: data['codigo'] ?? '');
     final nombreCtrl = TextEditingController(text: data['nombre'] ?? '');
     final cupoMaxCtrl = TextEditingController(
         text: (data['cuposMaximos'] ?? data['cupoMaximo'] ?? 20).toString());
-    final horarioCtrl = TextEditingController(text: data['horario'] ?? '');
     final lugarCtrl = TextEditingController(text: data['lugar'] ?? '');
     final imageCtrl = TextEditingController(
         text: data['imageUrl'] ??
@@ -43,6 +45,13 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     String categoriaVal = data['categoria'] ?? 'De equipo';
     String estadoVal = data['estado'] ?? 'Activo';
     String? entrenadorVal = data['entrenador'] as String?;
+    final existingSchedule = ScheduleData.fromMap(data);
+    final selectedDays = <int>{...existingSchedule.days};
+    int startMinutes = existingSchedule.startMinutes >= 0
+        ? existingSchedule.startMinutes
+        : 17 * 60;
+    int endMinutes =
+        existingSchedule.endMinutes > 0 ? existingSchedule.endMinutes : 19 * 60;
 
     showDialog(
       context: context,
@@ -298,26 +307,26 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildFormField(
-                              label: 'Horario',
-                              controller: horarioCtrl,
-                              hint: 'EJ. Lun / Mié 3:00 - 5:00',
-                              icon: Icons.access_time,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildFormField(
-                              label: 'Lugar / Instalación',
-                              controller: lugarCtrl,
-                              hint: 'EJ. Cancha Techada 1',
-                              icon: Icons.location_on,
-                            ),
-                          ),
-                        ],
+                      _buildScheduleEditor(
+                        selectedDays: selectedDays,
+                        startMinutes: startMinutes,
+                        endMinutes: endMinutes,
+                        onDaysChanged: (day, selected) {
+                          setDialogState(() {
+                            selected ? selectedDays.add(day) : selectedDays.remove(day);
+                          });
+                        },
+                        onStartChanged: (value) =>
+                            setDialogState(() => startMinutes = value),
+                        onEndChanged: (value) =>
+                            setDialogState(() => endMinutes = value),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildFormField(
+                        label: 'Lugar / Instalación',
+                        controller: lugarCtrl,
+                        hint: 'EJ. Cancha Techada 1',
+                        icon: Icons.location_on,
                       ),
                       const SizedBox(height: 12),
                       _buildFormField(
@@ -346,7 +355,18 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         horizontal: 20, vertical: 12),
                   ),
                   onPressed: () async {
-                    if (nombreCtrl.text.trim().isEmpty) return;
+                    if (nombreCtrl.text.trim().isEmpty ||
+                        selectedDays.isEmpty ||
+                        endMinutes <= startMinutes) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Completa el nombre, al menos un día y un rango de horas válido.'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                      return;
+                    }
 
                     // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO PARA EVITAR DESVINCULACIONES
                     String selectedEntrenadorUid = '';
@@ -373,13 +393,19 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                       }
                     }
 
+                    final schedule = ScheduleData(
+                      days: selectedDays.toList()..sort(),
+                      startMinutes: startMinutes,
+                      endMinutes: endMinutes,
+                    );
                     final payload = {
                       'codigo': codigoCtrl.text.trim().toUpperCase(),
                       'nombre': nombreCtrl.text.trim(),
                       'cupoMaximo': int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
                       'cuposMaximos':
                           int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
-                      'horario': horarioCtrl.text.trim(),
+                      'horario': schedule.displayText,
+                      ...schedule.toMap(),
                       'lugar': lugarCtrl.text.trim(),
                       'entrenador': entrenadorVal ?? 'Sin Entrenador',
                       'entrenadorUid': selectedEntrenadorUid,
@@ -414,6 +440,76 @@ class _AdminSportsViewState extends State<AdminSportsView> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildScheduleEditor({
+    required Set<int> selectedDays,
+    required int startMinutes,
+    required int endMinutes,
+    required void Function(int day, bool selected) onDaysChanged,
+    required ValueChanged<int> onStartChanged,
+    required ValueChanged<int> onEndChanged,
+  }) {
+    Future<void> pickTime({
+      required int initialMinutes,
+      required ValueChanged<int> onChanged,
+    }) async {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(
+          hour: initialMinutes ~/ 60,
+          minute: initialMinutes % 60,
+        ),
+      );
+      if (time != null) onChanged(time.hour * 60 + time.minute);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Horario estructurado',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 12, color: blueDark)),
+        const SizedBox(height: 6),
+        const Text('Selecciona los días y el rango de entrenamiento.',
+            style: TextStyle(fontSize: 11, color: Colors.black54)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 4,
+          children: weekdayNames.entries.map((entry) {
+            return FilterChip(
+              label: Text(entry.value),
+              selected: selectedDays.contains(entry.key),
+              onSelected: (selected) => onDaysChanged(entry.key, selected),
+              selectedColor: orangePrimary.withValues(alpha: 0.2),
+              checkmarkColor: orangePrimary,
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => pickTime(
+                    initialMinutes: startMinutes, onChanged: onStartChanged),
+                icon: const Icon(Icons.login, size: 16),
+                label: Text('Inicio: ${formatMinutes(startMinutes)}'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => pickTime(
+                    initialMinutes: endMinutes, onChanged: onEndChanged),
+                icon: const Icon(Icons.logout, size: 16),
+                label: Text('Fin: ${formatMinutes(endMinutes)}'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
