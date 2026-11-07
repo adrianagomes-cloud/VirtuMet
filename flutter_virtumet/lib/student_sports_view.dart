@@ -95,6 +95,10 @@ class _StudentSportsViewState extends State<StudentSportsView> {
               .collection('inscripciones')
               .snapshots(),
           builder: (context, inscripSnapshot) {
+            if (inscripSnapshot.hasError) {
+              return _errorMessage(
+                  'No se pudieron cargar tus inscripciones: ${inscripSnapshot.error}');
+            }
             final allInscripciones = inscripSnapshot.data?.docs ?? [];
             final misInscripciones = allInscripciones.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
@@ -113,11 +117,10 @@ class _StudentSportsViewState extends State<StudentSportsView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Column(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 700;
+                      final heading = const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -139,29 +142,47 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             ),
                           ),
                         ],
-                      ),
-                      if (widget.onBackToHome != null)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(
-                                color: Color(0xFFCBD5E1), width: 1.2),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: widget.onBackToHome,
-                          icon: const Icon(Icons.arrow_back,
-                              size: 18, color: blueDark),
-                          label: const Text(
-                            'Volver a Mi Inicio',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: blueDark,
-                                fontSize: 13),
-                          ),
-                        ),
-                    ],
+                      );
+                      final backButton = widget.onBackToHome == null
+                          ? null
+                          : OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                    color: Color(0xFFCBD5E1), width: 1.2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: widget.onBackToHome,
+                              icon: const Icon(Icons.arrow_back,
+                                  size: 18, color: blueDark),
+                              label: const Text(
+                                'Volver a Mi Inicio',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: blueDark,
+                                    fontSize: 13),
+                              ),
+                            );
+
+                      return Flex(
+                        direction: compact ? Axis.vertical : Axis.horizontal,
+                        crossAxisAlignment: compact
+                            ? CrossAxisAlignment.start
+                            : CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          heading,
+                          if (backButton != null) ...[
+                            SizedBox(
+                                height: compact ? 14 : 0,
+                                width: compact ? 0 : 16),
+                            backButton,
+                          ],
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 28),
 
@@ -240,6 +261,10 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                         .collection('deportes')
                         .snapshots(),
                     builder: (context, sportsSnapshot) {
+                      if (sportsSnapshot.hasError) {
+                        return _errorMessage(
+                            'No se pudo cargar el catálogo: ${sportsSnapshot.error}');
+                      }
                       if (sportsSnapshot.connectionState ==
                           ConnectionState.waiting) {
                         return const Center(
@@ -346,15 +371,21 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     final String id = doc.id;
     final data = doc.data() as Map<String, dynamic>;
 
-    final String codigo = data['codigo'] ?? 'DE-001';
-    final String nombre = data['nombre'] ?? 'Sin Nombre';
-    final String horario = data['horario'] ?? 'Por definir';
-    final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
-    final String entrenador = data['entrenador'] ?? 'Profesor Asignado';
-    final String imageUrl = data['imageUrl'] ?? '';
-    final String categoria = data['categoria'] ?? 'De equipo';
-    final int cuposMax =
-        (data['cuposMaximos'] ?? data['cupoMaximo'] ?? 20) as int;
+    final String codigo = (data['codigo'] ?? '').toString().trim();
+    final String nombre =
+        (data['nombre'] ?? 'Disciplina sin nombre').toString().trim();
+    final String horario =
+        (data['horario'] ?? 'Horario no disponible').toString().trim();
+    final String lugar =
+        (data['lugar'] ?? 'Lugar no disponible').toString().trim();
+    final String entrenador =
+        (data['entrenador'] ?? 'Entrenador no asignado').toString().trim();
+    final String imageUrl = (data['imageUrl'] ?? '').toString().trim();
+    final String categoria =
+        (data['categoria'] ?? 'Categoría no disponible').toString().trim();
+    final int cuposMax = _asNonNegativeInt(
+        data['cuposMaximos'] ?? data['cupoMaximo'],
+        fallback: 0);
 
     final bool yaInscrito = misInscripciones
         .any((i) => (i.data() as Map<String, dynamic>)['deporteId'] == id);
@@ -366,6 +397,16 @@ class _StudentSportsViewState extends State<StudentSportsView> {
           .where('deporteId', isEqualTo: id)
           .snapshots(),
       builder: (context, inscripSnap) {
+        if (inscripSnap.hasError) {
+          return const SizedBox(
+            height: 24,
+            width: 24,
+            child: Tooltip(
+              message: 'No se pudo consultar la disponibilidad',
+              child: Icon(Icons.error_outline, color: Colors.red),
+            ),
+          );
+        }
         final int inscritosReales =
             inscripSnap.hasData
                 ? inscripSnap.data!.docs
@@ -419,7 +460,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        codigo,
+                        codigo.isEmpty ? 'Sin código' : codigo,
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -616,27 +657,26 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       final inscripcionRef = db.collection('inscripciones').doc();
       final batch = db.batch();
       batch.set(inscripcionRef, {
-        'deporteId': deporteId,
-        'nombreDeporte': nombre,
-        'estudianteId': _currentUser?.uid,
-        'correoEstudiante': _currentUser?.email,
-        'nombreEstudiante': nombreEstudiante,
-        'horario': horario,
-        'lugar': lugar,
-        'fechaInscripcion': FieldValue.serverTimestamp(),
-        'estado': 'Confirmada',
-        // Datos del pago (comprobante)
-        'precio': precio,
-        'moneda': 'USD',
-        'pagado': pago != null,
-        'metodoPago': pago != null ? 'PayPal (sandbox)' : 'Gratuita',
-        'paypalOrderId': pago?.orderId,
-        'paypalCaptureId': pago?.captureId,
-        'paypalEstado': pago?.estado,
-        'correoPagador': pago?.correoPagador,
-        'montoPagado': pago?.monto ?? 0,
-        'fechaPago': pago != null ? FieldValue.serverTimestamp() : null,
-      });
+          'deporteId': deporteId,
+          'nombreDeporte': nombre,
+          'estudianteId': _currentUser?.uid,
+          'correoEstudiante': _currentUser?.email,
+          'nombreEstudiante': nombreEstudiante,
+          'horario': horario,
+          'lugar': lugar,
+          'fechaInscripcion': FieldValue.serverTimestamp(),
+          'estado': 'Confirmada',
+          'precio': precio,
+          'moneda': 'USD',
+          'pagado': pago != null,
+          'metodoPago': pago != null ? 'PayPal (sandbox)' : 'Gratuita',
+          'paypalOrderId': pago?.orderId,
+          'paypalCaptureId': pago?.captureId,
+          'paypalEstado': pago?.estado,
+          'correoPagador': pago?.correoPagador,
+          'montoPagado': pago?.monto ?? 0,
+          'fechaPago': pago != null ? FieldValue.serverTimestamp() : null,
+        });
       batch.update(db.collection('deportes').doc(deporteId), {
         'cuposInscritos': FieldValue.increment(1),
       });
@@ -698,6 +738,23 @@ class _StudentSportsViewState extends State<StudentSportsView> {
           ),
         ],
       ),
+    );
+  }
+
+  int _asNonNegativeInt(dynamic value, {required int fallback}) {
+    final number = value is num ? value.toInt() : int.tryParse('$value');
+    return number == null || number < 0 ? fallback : number;
+  }
+
+  Widget _errorMessage(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(message, style: const TextStyle(color: Colors.red)),
     );
   }
 

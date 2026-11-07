@@ -146,6 +146,13 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         key: const ValueKey(1),
                         onBackToHome: () => setState(() => _selectedIndex = 0),
                       )
+                    else if (_selectedIndex == 2)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 32),
+                        child: _buildMainContent(
+                            misInscripciones, nombreEstudiante),
+                      )
                     else if (_selectedIndex == 4)
                       _buildStudentReviewsView(authUid)
                     else
@@ -761,11 +768,22 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   }
 
                   final String deporteNombre = sportData['nombre'] ?? data['nombreDeporte'] ?? 'Disciplina';
-                  final String horario = sportData['horario'] ?? data['horario'] ?? 'Lunes / Miércoles 5:30 - 7:00 PM';
-                  final String lugar = sportData['lugar'] ?? data['lugar'] ?? 'Cancha Techada UNIMET';
+                  final String horario =
+                      (sportData['horario'] ?? data['horario'] ?? '')
+                          .toString()
+                          .trim();
+                  final String lugar =
+                      (sportData['lugar'] ?? data['lugar'] ?? '')
+                          .toString()
+                          .trim();
                   final String imageUrl = (sportData['imageUrl'] ?? data['imageUrl'] ?? '').toString().trim();
 
-                  return _activityCard(deporteId, deporteNombre, horario, lugar, imageUrl);
+                  return _activityCard(
+                      deporteId,
+                      deporteNombre.toString(),
+                      horario.isEmpty ? 'Horario no disponible' : horario,
+                      lugar.isEmpty ? 'Lugar no disponible' : lugar,
+                      imageUrl);
                 },
               );
             }).toList(),
@@ -790,77 +808,121 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
-  Widget _activityCard(String deporteId, String deporteNombre, String horario, String lugar, String imageUrl) {
+  Widget _activityCard(String deporteId, String deporteNombre, String horario,
+      String lugar, String imageUrl) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: cardDecoration,
-      child: Row(
-        children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(deporteNombre,
+                  style: const TextStyle(
+                      color: blueDark,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('$horario · $lugar',
+                  style: const TextStyle(color: textGrey, fontSize: 13)),
+            ],
+          );
+          final actions = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton.icon(
+                onPressed: () async {
+                  final sportDoc = await FirebaseFirestore.instance
+                      .collection('deportes')
+                      .doc(deporteId)
+                      .get();
+                  final sportData =
+                      sportDoc.data() as Map<String, dynamic>?;
+                  final profesorUid =
+                      (sportData?['entrenadorUid'] ?? '').toString();
+                  final profesorNombre =
+                      (sportData?['entrenador'] ?? '').toString().trim();
+
+                  if (!mounted) return;
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) => Dialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: Container(
+                        width: 450,
+                        padding: const EdgeInsets.all(16),
+                        child: StudentReviewFormView(
+                          deporteId: deporteId,
+                          deporteNombre: deporteNombre,
+                          profesorUid: profesorUid,
+                          profesorNombre: profesorNombre.isEmpty
+                              ? 'Entrenador no asignado'
+                              : profesorNombre,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.star_rate,
+                    color: Colors.amber, size: 18),
+                label: const Text('Calificar',
+                    style: TextStyle(color: blueDark, fontSize: 11)),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 16),
+                    SizedBox(width: 6),
+                    Text('Inscrito',
+                        style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          return Flex(
+            direction: compact ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: compact
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
+            children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: imageUrl.isNotEmpty
                 ? Image.network(imageUrl, width: 68, height: 68, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 68, height: 68, color: bgLight, child: Icon(_getSportIcon(deporteNombre), color: blueDark, size: 30)))
                 : Container(width: 68, height: 68, color: bgLight, child: Icon(_getSportIcon(deporteNombre), color: blueDark, size: 30)),
           ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(deporteNombre, style: const TextStyle(color: blueDark, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text('$horario · $lugar', style: const TextStyle(color: textGrey, fontSize: 13)),
-              ],
-            ),
-          ),
-          TextButton.icon(
-            onPressed: () async {
-              final sportDoc = await FirebaseFirestore.instance.collection('deportes').doc(deporteId).get();
-              final sportData = sportDoc.data() as Map<String, dynamic>?;
-              final profesorUid = sportData?['entrenadorUid'] ?? '';
-              final profesorNombre = sportData?['entrenador'] ?? 'Jose Antonio';
-
-              if (!mounted) return;
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return Dialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Container(
-                      width: 450,
-                      padding: const EdgeInsets.all(16),
-                      child: StudentReviewFormView(
-                        deporteId: deporteId,
-                        deporteNombre: deporteNombre,
-                        profesorUid: profesorUid,
-                        profesorNombre: profesorNombre,
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-            icon: const Icon(Icons.star_rate, color: Colors.amber, size: 18),
-            label: const Text('Calificar', style: TextStyle(color: blueDark, fontSize: 11)),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 16),
-                SizedBox(width: 6),
-                Text('Inscrito', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
-              ],
-            ),
-          ),
+          SizedBox(
+              width: compact ? 0 : 20,
+              height: compact ? 16 : 0),
+          if (compact)
+            details
+          else
+            Expanded(child: details),
+          SizedBox(
+              width: compact ? 0 : 16,
+              height: compact ? 12 : 0),
+          actions,
         ],
+          );
+        },
       ),
     );
   }

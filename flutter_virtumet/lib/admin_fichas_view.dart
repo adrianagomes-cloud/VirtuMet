@@ -244,15 +244,26 @@ class _InscripcionesList extends StatelessWidget {
     if (ok != true) return;
     try {
       final db = FirebaseFirestore.instance;
-      final batch = db.batch();
-      batch.update(d.reference, {'estado': 'Cancelada'});
       final deporteId = m['deporteId']?.toString();
-      if (deporteId != null && deporteId.isNotEmpty) {
-        batch.update(db.collection('deportes').doc(deporteId), {
-          'cuposInscritos': FieldValue.increment(-1),
-        });
-      }
-      await batch.commit();
+      await db.runTransaction((transaction) async {
+        DocumentSnapshot? deporte;
+        if (deporteId != null && deporteId.isNotEmpty) {
+          deporte =
+              await transaction.get(db.collection('deportes').doc(deporteId));
+        }
+        transaction.update(d.reference, {'estado': 'Cancelada'});
+        if (deporte != null && deporte.exists) {
+          final data = deporte.data() as Map<String, dynamic>?;
+          final inscritos = data?['cuposInscritos'];
+          final inscritosActuales =
+              inscritos is num ? inscritos.toInt() : int.tryParse('$inscritos') ?? 0;
+          if (inscritosActuales > 0) {
+            transaction.update(deporte.reference, {
+              'cuposInscritos': FieldValue.increment(-1),
+            });
+          }
+        }
+      });
       if (context.mounted) showMsg(context, 'Inscripción cancelada y cupo liberado.');
     } catch (e) {
       if (context.mounted) showMsg(context, 'No se pudo cancelar: $e', error: true);
