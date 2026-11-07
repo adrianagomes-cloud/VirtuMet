@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'precio_utils.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -36,6 +37,9 @@ class _AdminSportsViewState extends State<AdminSportsView> {
         text: (data['cuposMaximos'] ?? data['cupoMaximo'] ?? 20).toString());
     final horarioCtrl = TextEditingController(text: data['horario'] ?? '');
     final lugarCtrl = TextEditingController(text: data['lugar'] ?? '');
+    final precioCtrl = TextEditingController(
+        text: precioATexto(precioDeDisciplina(Map<String, dynamic>.from(data))));
+    String? precioError;
     final imageCtrl = TextEditingController(
         text: data['imageUrl'] ??
             'https://images.unsplash.com/photo-1517649763962-0c623266200a?auto=format&fit=crop&w=800&q=80');
@@ -110,6 +114,24 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         hint: 'EJ. Fútbol Sala - Mayores',
                         icon: Icons.sports_soccer,
                       ),
+                      const SizedBox(height: 12),
+                      _buildFormField(
+                        label:
+                            'Precio de inscripción (USD) - mínimo ${formatPrecio(kPrecioMinimo)}',
+                        controller: precioCtrl,
+                        hint: 'EJ. 50',
+                        icon: Icons.attach_money,
+                        isNumber: true,
+                      ),
+                      if (precioError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            precioError!,
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 12),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -348,6 +370,18 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                   onPressed: () async {
                     if (nombreCtrl.text.trim().isEmpty) return;
 
+                    // El precio de cada disciplina debe ser de al menos 50 USD.
+                    final double? precio = double.tryParse(
+                        precioCtrl.text.trim().replaceAll(',', '.'));
+                    if (precio == null || precio < kPrecioMinimo) {
+                      setDialogState(() => precioError =
+                          'El precio debe ser un número de al menos ${formatPrecio(kPrecioMinimo)} USD.');
+                      return;
+                    }
+                    if (precioError != null) {
+                      setDialogState(() => precioError = null);
+                    }
+
                     // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO PARA EVITAR DESVINCULACIONES
                     String selectedEntrenadorUid = '';
                     if (entrenadorVal != null && entrenadorVal != 'Sin Entrenador') {
@@ -381,6 +415,8 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                           int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
                       'horario': horarioCtrl.text.trim(),
                       'lugar': lugarCtrl.text.trim(),
+                      'precio': precio,
+                      'moneda': 'USD',
                       'entrenador': entrenadorVal ?? 'Sin Entrenador',
                       'entrenadorUid': selectedEntrenadorUid,
                       'categoria': categoriaVal,
@@ -724,6 +760,9 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                   const SizedBox(height: 6),
                   _iconDetailRow(
                       Icons.person_outline_rounded, 'Entrenador: $entrenador'),
+                  const SizedBox(height: 6),
+                  _iconDetailRow(Icons.attach_money_rounded,
+                      'Precio: ${formatPrecio(precioDeDisciplina(data))} USD'),
                   const Spacer(),
                   Row(
                     children: [

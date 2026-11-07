@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'precio_utils.dart';
+import 'paypal_checkout.dart';
 
 class StudentSportsView extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -83,6 +85,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
             final allInscripciones = inscripSnapshot.data?.docs ?? [];
             final misInscripciones = allInscripciones.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
+              if (data['estado'] == 'Cancelada') return false;
               final String estId = (data['estudianteId'] ?? '').toString();
               final String estEmail =
                   (data['correoEstudiante'] ?? data['correo'] ?? '')
@@ -347,7 +350,13 @@ class _StudentSportsViewState extends State<StudentSportsView> {
           .snapshots(),
       builder: (context, inscripSnap) {
         final int inscritosReales =
-            inscripSnap.hasData ? inscripSnap.data!.docs.length : 0;
+            inscripSnap.hasData
+                ? inscripSnap.data!.docs
+                    .where((d) =>
+                        (d.data() as Map<String, dynamic>)['estado'] !=
+                        'Cancelada')
+                    .length
+                : 0;
         final int cuposDisponibles =
             (cuposMax - inscritosReales).clamp(0, cuposMax);
 
@@ -433,6 +442,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                       const SizedBox(height: 4),
                       _detailRow(Icons.person_outline_rounded,
                           'Entrenador: $entrenador'),
+                      const SizedBox(height: 4),
+                      _detailRow(Icons.attach_money_rounded,
+                          'Precio: ${formatPrecio(precioDeDisciplina(data))} USD'),
                       const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -472,42 +484,15 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             ),
                             onPressed: (yaInscrito || cuposDisponibles <= 0)
                                 ? null
-                                : () async {
-                                    // Escritura transaccional en Firestore
-                                    await FirebaseFirestore.instance
-                                        .collection('inscripciones')
-                                        .add({
-                                      'deporteId': id,
-                                      'nombreDeporte': nombre,
-                                      'estudianteId': _currentUser?.uid,
-                                      'correoEstudiante': _currentUser?.email,
-                                      'nombreEstudiante': nombreEstudiante,
-                                      'horario': horario,
-                                      'lugar': lugar,
-                                      'fechaInscripcion':
-                                          FieldValue.serverTimestamp(),
-                                      'estado': 'Confirmada',
-                                    });
-
-                                    await FirebaseFirestore.instance
-                                        .collection('deportes')
-                                        .doc(id)
-                                        .update({
-                                      'cuposInscritos':
-                                          FieldValue.increment(1),
-                                    });
-
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                              '¡Te has inscrito exitosamente en $nombre!'),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
-                                    }
-                                  },
+                                : () => _pagarEInscribir(
+                                      context: context,
+                                      deporteId: id,
+                                      nombre: nombre,
+                                      horario: horario,
+                                      lugar: lugar,
+                                      nombreEstudiante: nombreEstudiante,
+                                      precio: precioDeDisciplina(data),
+                                    ),
                             child: Text(
                               yaInscrito
                                   ? 'Inscrito'
@@ -528,6 +513,159 @@ class _StudentSportsViewState extends State<StudentSportsView> {
           ),
         );
       },
+    );
+  }
+
+  /// Cobra la inscripción con PayPal (sandbox) y, si el pago se aprueba,
+  /// registra la inscripción y descuenta el cupo en un solo paso (batch).
+  /// Si el precio es 0, inscribe directamente sin pasar por PayPal.
+  Future<void> _pagarEInscribir({
+    required BuildContext context,
+    required String deporteId,
+    required String nombre,
+    required String horario,
+    required String lugar,
+    required String nombreEstudiante,
+    required double precio,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    PaypalPago? pago;
+
+    if (precio > 0) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirmar inscripción'),
+          content: Text(
+            'Vas a inscribirte en $nombre.\n\n'
+            'Total a pagar: ${formatPrecio(precio)} USD\n\n'
+            'Se abrirá PayPal en modo de pruebas (no se cobra dinero real).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: orangePrimary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Pagar con PayPal'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+
+      try {
+        pago = await pagarConPaypal(
+          monto: precio,
+          descripcion: 'Inscripción $nombre - VirtuMet',
+        );
+      } on PaypalCancelado {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Pago cancelado. No se realizó la inscripción.'),
+        ));
+        return;
+      } on PaypalError catch (e) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('No se pudo completar el pago: ${e.mensaje}'),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+    }
+
+    // Pago aprobado (o disciplina gratuita): registrar la inscripción.
+    try {
+      final db = FirebaseFirestore.instance;
+      final inscripcionRef = db.collection('inscripciones').doc();
+      final batch = db.batch();
+      batch.set(inscripcionRef, {
+        'deporteId': deporteId,
+        'nombreDeporte': nombre,
+        'estudianteId': _currentUser?.uid,
+        'correoEstudiante': _currentUser?.email,
+        'nombreEstudiante': nombreEstudiante,
+        'horario': horario,
+        'lugar': lugar,
+        'fechaInscripcion': FieldValue.serverTimestamp(),
+        'estado': 'Confirmada',
+        // Datos del pago (comprobante)
+        'precio': precio,
+        'moneda': 'USD',
+        'pagado': pago != null,
+        'metodoPago': pago != null ? 'PayPal (sandbox)' : 'Gratuita',
+        'paypalOrderId': pago?.orderId,
+        'paypalCaptureId': pago?.captureId,
+        'paypalEstado': pago?.estado,
+        'correoPagador': pago?.correoPagador,
+        'montoPagado': pago?.monto ?? 0,
+        'fechaPago': pago != null ? FieldValue.serverTimestamp() : null,
+      });
+      batch.update(db.collection('deportes').doc(deporteId), {
+        'cuposInscritos': FieldValue.increment(1),
+      });
+      await batch.commit();
+    } catch (e) {
+      // El pago ya se hizo pero no se pudo guardar: mostrar el número de orden
+      // para que el admin pueda verificarlo en PayPal.
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+            'El pago se realizó pero no se pudo registrar la inscripción '
+            '(orden ${pago?.orderId ?? '-'}). Avisa al administrador. Error: $e'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 12),
+      ));
+      return;
+    }
+
+    if (!context.mounted) return;
+    if (pago == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('¡Te has inscrito exitosamente en $nombre!'),
+        backgroundColor: Colors.green,
+      ));
+      return;
+    }
+
+    // Comprobante de pago
+    final PaypalPago comprobante = pago!;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.receipt_long, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Comprobante de pago'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('¡Inscripción confirmada!',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text('Disciplina: $nombre'),
+            Text('Estudiante: $nombreEstudiante'),
+            Text('Monto pagado: ${formatPrecio(comprobante.monto)} '
+                '${comprobante.moneda}'),
+            Text('Método: PayPal (modo de pruebas)'),
+            Text('N° de orden: ${comprobante.orderId}'),
+            Text('Fecha: ${DateTime.now().toString().substring(0, 16)}'),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
     );
   }
 

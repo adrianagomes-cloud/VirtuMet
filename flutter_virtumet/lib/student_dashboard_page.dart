@@ -119,6 +119,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
             final misInscripciones = allInscripciones.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
+              if (data['estado'] == 'Cancelada') return false;
               final String estId = (data['estudianteId'] ?? '').toString();
               final String estEmail =
                   (data['correoEstudiante'] ?? data['correo'] ?? '')
