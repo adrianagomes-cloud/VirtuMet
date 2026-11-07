@@ -58,6 +58,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
         // (correo fijo) y los entrenadores quedan bloqueados.
         bool puedeInscribirse =
             userEmail.toLowerCase() != 'admin@correo.unimet.ve';
+        // Validación de estado: un estudiante marcado como Inactivo por el
+        // administrador no puede inscribirse (ni pagar) en ninguna disciplina.
+        bool cuentaInactiva = false;
 
         if (userSnapshot.hasData && userSnapshot.data!.docs.isNotEmpty) {
           final matches = userSnapshot.data!.docs.where((doc) {
@@ -79,6 +82,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                 .trim();
             final String rol = (data['rol'] ?? 'Estudiante').toString();
             if (rol == 'Admin' || rol == 'Entrenador') puedeInscribirse = false;
+            if ((data['estado'] ?? 'Activo').toString() == 'Inactivo') {
+              cuentaInactiva = true;
+            }
           }
         }
 
@@ -314,6 +320,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             misInscripciones: misInscripciones,
                             nombreEstudiante: nombreEstudiante,
                             puedeInscribirse: puedeInscribirse,
+                            cuentaInactiva: cuentaInactiva,
                           );
                         },
                       );
@@ -333,6 +340,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     required List<DocumentSnapshot> misInscripciones,
     required String nombreEstudiante,
     required bool puedeInscribirse,
+    required bool cuentaInactiva,
   }) {
     final String id = doc.id;
     final data = doc.data() as Map<String, dynamic>;
@@ -490,7 +498,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: (!puedeInscribirse || yaInscrito || cuposDisponibles <= 0)
+                            onPressed: (!puedeInscribirse || cuentaInactiva || yaInscrito || cuposDisponibles <= 0)
                                 ? null
                                 : () => _pagarEInscribir(
                                       context: context,
@@ -504,6 +512,8 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             child: Text(
                               !puedeInscribirse
                                   ? 'Solo estudiantes'
+                                  : cuentaInactiva
+                                  ? 'Cuenta inactiva'
                                   : yaInscrito
                                   ? 'Inscrito'
                                   : (cuposDisponibles > 0
