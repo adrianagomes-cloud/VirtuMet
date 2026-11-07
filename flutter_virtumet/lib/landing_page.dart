@@ -1,43 +1,109 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'registration_page.dart';
+import 'landing_catalog_section.dart';
 
-class LandingPage extends StatelessWidget {
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
 
-  // Colores corporativos de VirtuMet
   static const Color orangePrimary = Color(0xFFFF5500);
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color bgLight = Color(0xFFF8F9FA);
   static const Color textDark = Color(0xFF1F2937);
 
   @override
+  State<LandingPage> createState() => _LandingPageState();
+}
+
+class _LandingPageState extends State<LandingPage> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _catalogKey = GlobalKey();
+  final GlobalKey _servicesKey = GlobalKey();
+
+  // Regresa al inicio superior de la página
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // Desplaza la página hasta el catálogo de disciplinas
+  void _scrollToCatalog() {
+    final ctx = _catalogKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  // Desplaza la página hasta la sección de Servicios / Tecnología
+  void _scrollToServices() {
+    final ctx = _servicesKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
+        controller: _scrollController,
         child: Column(
           children: [
-            // 1. Barra de Navegación Superior
-            const _Navbar(),
+            // 1. Barra de Navegación (Solo Inicio y Servicios)
+            _Navbar(
+              onInicio: _scrollToTop,
+              onServicios: _scrollToServices,
+            ),
 
-            // 2. Sección Principal (Hero Banner)
-            const _HeroSection(),
+            // 2. Banner Principal (Hero)
+            _HeroSection(onVerDisciplinas: _scrollToCatalog),
 
-            // 3. Sección: Comunidad y Liderazgo
+            // 3. Catálogo público en tiempo real
+            KeyedSubtree(
+              key: _catalogKey,
+              child: const LandingCatalogSection(),
+            ),
+
+            // 4. Comunidad y Liderazgo (Explorar Más lleva a Registro)
             const _FeatureSection2(),
 
-            // 4. Sección: Tecnología y Deporte (Grilla de Tarjetas)
-            const _TechGridSection(),
+            // 5. Servicios / Tecnología y Deporte
+            KeyedSubtree(
+              key: _servicesKey,
+              child: const _TechGridSection(),
+            ),
 
-            // 5. Banner de Llamado a la Acción (CTA Azul)
-            const _CtaBannerSection(),
+            // 6. Banner CTA
+            _CtaBannerSection(onExplorarCatalogo: _scrollToCatalog),
 
-            // 6. Franja Institucional (UNIMET / Logos)
+            // 7. Franja Institucional
             const _SponsorsSection(),
 
-            // 7. Pie de Página (Footer)
-            const _FooterSection(),
+            // 8. Pie de Página
+            _FooterSection(
+              onInicio: _scrollToTop,
+              onServicios: _scrollToServices,
+              onCatalogo: _scrollToCatalog,
+            ),
           ],
         ),
       ),
@@ -46,10 +112,16 @@ class LandingPage extends StatelessWidget {
 }
 
 // =============================================================================
-// 1. NAVBAR (BARRA DE NAVEGACIÓN SUPERIOR CON LOGO OFICIAL)
+// 1. NAVBAR (Navegación Limpia)
 // =============================================================================
 class _Navbar extends StatelessWidget {
-  const _Navbar();
+  final VoidCallback onInicio;
+  final VoidCallback onServicios;
+
+  const _Navbar({
+    required this.onInicio,
+    required this.onServicios,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -67,29 +139,28 @@ class _Navbar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Logo Oficial VirtuMet en PNG
-          Image.asset(
-            'lib/assets/Logo.png',
-            height: 70,
-            fit: BoxFit.contain,
+          InkWell(
+            onTap: onInicio,
+            child: Image.asset(
+              'lib/assets/Logo.png',
+              height: 70,
+              fit: BoxFit.contain,
+            ),
           ),
           const Spacer(),
 
-          // Menú de Enlaces
-          _navLink('Inicio'),
-          _navLink('Servicios'),
-          _navLink('Deportes'),
+          _navLink('Inicio', onTap: onInicio),
+          _navLink('Servicios', onTap: onServicios),
 
           const SizedBox(width: 30),
 
-          // Botón Ingresar (Conectado a LoginPage)
           OutlinedButton(
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
               );
-            }, 
+            },
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: LandingPage.blueDark),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -102,11 +173,11 @@ class _Navbar extends StatelessWidget {
     );
   }
 
-  static Widget _navLink(String title) {
+  static Widget _navLink(String title, {required VoidCallback onTap}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: InkWell(
-        onTap: () {}, 
+        onTap: onTap,
         child: Text(
           title,
           style: const TextStyle(
@@ -121,10 +192,11 @@ class _Navbar extends StatelessWidget {
 }
 
 // =============================================================================
-// 2. HERO SECTION (HERO BANNER PRINCIPAL)
+// 2. HERO SECTION
 // =============================================================================
 class _HeroSection extends StatelessWidget {
-  const _HeroSection();
+  final VoidCallback onVerDisciplinas;
+  const _HeroSection({required this.onVerDisciplinas});
 
   @override
   Widget build(BuildContext context) {
@@ -138,14 +210,13 @@ class _HeroSection extends StatelessWidget {
           ),
           fit: BoxFit.cover,
           colorFilter: ColorFilter.mode(
-            Color(0xCC0F2C59), 
+            Color(0xCC0F2C59),
             BlendMode.darken,
           ),
         ),
       ),
       child: Column(
         children: [
-          // Badge Novedad
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
@@ -159,7 +230,6 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Título Principal
           RichText(
             textAlign: TextAlign.center,
             text: const TextSpan(
@@ -172,7 +242,6 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Subtítulo
           const SizedBox(
             width: 700,
             child: Text(
@@ -183,18 +252,16 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          // Botones de Acción
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Botón EMPEZAR AHORA > (Redirige al Registro / Selección de Rol)
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const RegistrationPage()),
                   );
-                }, 
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: LandingPage.orangePrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
@@ -204,7 +271,7 @@ class _HeroSection extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               OutlinedButton(
-                onPressed: () {}, 
+                onPressed: onVerDisciplinas,
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
@@ -216,19 +283,66 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 60),
 
-          // Barra de Estadísticas
-          Wrap(
-            spacing: 50,
-            runSpacing: 20,
-            alignment: WrapAlignment.center,
-            children: const [
-              _StatItem(number: '2,500+', label: 'ATLETAS ACTIVOS'),
-              _StatItem(number: '18', label: 'DISCIPLINAS'),
-              _StatItem(number: '45', label: 'ENTRENADORES'),
-            ],
-          ),
+          const _RealTimeHeroStats(),
         ],
       ),
+    );
+  }
+}
+
+class _RealTimeHeroStats extends StatelessWidget {
+  const _RealTimeHeroStats();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, usersSnapshot) {
+        int totalEstudiantes = 0;
+        int totalEntrenadores = 0;
+
+        if (usersSnapshot.hasData && usersSnapshot.data != null) {
+          for (var doc in usersSnapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final String rol =
+                (data['rol'] ?? data['role'] ?? '').toString().toLowerCase().trim();
+
+            if (rol == 'entrenador' || rol == 'profesor' || rol == 'maestro') {
+              totalEntrenadores++;
+            } else if (rol == 'estudiante' || rol == 'atleta' || rol == 'alumno') {
+              totalEstudiantes++;
+            }
+          }
+        }
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+          builder: (context, sportsSnapshot) {
+            final int totalDeportes = sportsSnapshot.data?.docs.length ?? 0;
+            final bool isLoading = !usersSnapshot.hasData || !sportsSnapshot.hasData;
+
+            return Wrap(
+              spacing: 50,
+              runSpacing: 20,
+              alignment: WrapAlignment.center,
+              children: [
+                _StatItem(
+                  number: isLoading ? '...' : '$totalEstudiantes',
+                  label: 'ATLETAS ACTIVOS',
+                ),
+                _StatItem(
+                  number: isLoading ? '...' : '$totalDeportes',
+                  label: 'DISCIPLINAS',
+                ),
+                _StatItem(
+                  number: isLoading ? '...' : '$totalEntrenadores',
+                  label: 'ENTRENADORES',
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -242,15 +356,29 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(number, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: LandingPage.orangePrimary)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600)),
+        Text(
+          number,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: LandingPage.orangePrimary,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
 }
 
 // =============================================================================
-// 3. SECCIÓN: COMUNIDAD Y LIDERAZGO
+// 3. COMUNIDAD Y LIDERAZGO
 // =============================================================================
 class _FeatureSection2 extends StatelessWidget {
   const _FeatureSection2();
@@ -265,7 +393,6 @@ class _FeatureSection2 extends StatelessWidget {
           width: 1100,
           child: Row(
             children: [
-              // Columna Izquierda: Imagen
               Expanded(
                 child: Stack(
                   children: [
@@ -301,7 +428,6 @@ class _FeatureSection2 extends StatelessWidget {
               ),
               const SizedBox(width: 50),
 
-              // Columna Derecha: Texto
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,7 +449,12 @@ class _FeatureSection2 extends StatelessWidget {
                     _bulletPoint('Eventos e Integración'),
                     const SizedBox(height: 24),
                     TextButton(
-                      onPressed: () {}, 
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegistrationPage()),
+                        );
+                      },
                       child: const Text('EXPLORAR MÁS >', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -351,7 +482,7 @@ class _FeatureSection2 extends StatelessWidget {
 }
 
 // =============================================================================
-// 4. SECCIÓN: GRILLA DE TECNOLOGÍA Y DEPORTE
+// 4. SECCIÓN DE SERVICIOS (TECNOLOGÍA Y DEPORTE EN ARMONÍA)
 // =============================================================================
 class _TechGridSection extends StatelessWidget {
   const _TechGridSection();
@@ -363,14 +494,13 @@ class _TechGridSection extends StatelessWidget {
       color: Colors.white,
       child: Column(
         children: [
-          const Text('EL PODER DE LA PLATAFORMA', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          const Text('NUESTROS SERVICIOS', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 8),
           const Text('TECNOLOGÍA Y DEPORTE EN ARMONÍA', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: LandingPage.blueDark)),
           const SizedBox(height: 12),
           const Text('Combinamos la innovación digital con la infraestructura física para una experiencia sin límites.', style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 50),
 
-          // Tarjetas de Funcionalidades
           Wrap(
             spacing: 24,
             runSpacing: 24,
@@ -426,10 +556,11 @@ class _FeatureCard extends StatelessWidget {
 }
 
 // =============================================================================
-// 5. BANNER DE LLAMADO A LA ACCIÓN (CTA AZUL)
+// 5. BANNER CTA
 // =============================================================================
 class _CtaBannerSection extends StatelessWidget {
-  const _CtaBannerSection();
+  final VoidCallback onExplorarCatalogo;
+  const _CtaBannerSection({required this.onExplorarCatalogo});
 
   @override
   Widget build(BuildContext context) {
@@ -464,14 +595,13 @@ class _CtaBannerSection extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Botón REGÍSTRATE AHORA >
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const RegistrationPage()),
                     );
-                  }, 
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: LandingPage.orangePrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
@@ -481,7 +611,7 @@ class _CtaBannerSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 OutlinedButton(
-                  onPressed: () {}, 
+                  onPressed: onExplorarCatalogo,
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.white),
                     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
@@ -501,7 +631,7 @@ class _CtaBannerSection extends StatelessWidget {
 }
 
 // =============================================================================
-// 6. FRANJA INSTITUCIONAL (PATROCINADORES / UNIMET)
+// 6. FRANJA INSTITUCIONAL
 // =============================================================================
 class _SponsorsSection extends StatelessWidget {
   const _SponsorsSection();
@@ -542,10 +672,18 @@ class _SponsorTag extends StatelessWidget {
 }
 
 // =============================================================================
-// 7. PIE DE PÁGINA (FOOTER CON LOGO OFICIAL)
+// 7. PIE DE PÁGINA
 // =============================================================================
 class _FooterSection extends StatelessWidget {
-  const _FooterSection();
+  final VoidCallback onInicio;
+  final VoidCallback onServicios;
+  final VoidCallback onCatalogo;
+
+  const _FooterSection({
+    required this.onInicio,
+    required this.onServicios,
+    required this.onCatalogo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -557,16 +695,18 @@ class _FooterSection extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Columna 1: Logo Oficial & Info
               Expanded(
                 flex: 2,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Image.asset(
-                      'lib/assets/Logo.png',
-                      height: 90,
-                      fit: BoxFit.contain,
+                    InkWell(
+                      onTap: onInicio,
+                      child: Image.asset(
+                        'lib/assets/Logo.png',
+                        height: 90,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -578,31 +718,37 @@ class _FooterSection extends StatelessWidget {
               ),
               const SizedBox(width: 40),
 
-              // Columna 2 y 3: Enlaces
-              _footerColumn('PLATAFORMA', ['Inicio', 'Catálogo', 'Inscripciones']),
-              _footerColumn('ASISTENCIA', ['Soporte', 'Preguntas Frecuentes', 'Contacto']),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PLATAFORMA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
+                    const SizedBox(height: 12),
+                    InkWell(onTap: onInicio, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Inicio', style: TextStyle(color: Colors.white54, fontSize: 13)))),
+                    InkWell(onTap: onServicios, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Servicios', style: TextStyle(color: Colors.white54, fontSize: 13)))),
+                    InkWell(onTap: onCatalogo, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Catálogo', style: TextStyle(color: Colors.white54, fontSize: 13)))),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('ASISTENCIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
+                    const SizedBox(height: 12),
+                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Soporte', style: TextStyle(color: Colors.white54, fontSize: 13))),
+                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Preguntas Frecuentes', style: TextStyle(color: Colors.white54, fontSize: 13))),
+                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Contacto', style: TextStyle(color: Colors.white54, fontSize: 13))),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 40),
           const Divider(color: Colors.white10),
           const SizedBox(height: 20),
           const Text('© 2026 VirtuMet UNIMET. Todos los derechos reservados.', style: TextStyle(color: Colors.white38, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  static Widget _footerColumn(String title, List<String> links) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
-          const SizedBox(height: 12),
-          ...links.map((link) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(link, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-          )),
         ],
       ),
     );
