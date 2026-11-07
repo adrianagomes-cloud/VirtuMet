@@ -41,10 +41,15 @@ class AdminStatsView extends StatelessWidget {
 
                 final Map<String, int> porDeporte = {};
                 int inscActivas = 0;
+                double recaudado = 0;
                 for (final d in inscSnap.data!.docs) {
                   final m = d.data() as Map<String, dynamic>;
                   if (m['estado'] == 'Cancelada') continue;
                   inscActivas++;
+                  if (m['pagado'] == true) {
+                    recaudado += ((m['montoPagado'] ?? m['precio'] ?? 0) as num)
+                        .toDouble();
+                  }
                   final id = m['deporteId']?.toString();
                   if (id != null) porDeporte[id] = (porDeporte[id] ?? 0) + 1;
                 }
@@ -86,6 +91,9 @@ class AdminStatsView extends StatelessWidget {
                         _Kpi('Entrenadores', '$entrenadores', Icons.sports, kNavy),
                         _Kpi('Inscripciones activas', '$inscActivas',
                             Icons.how_to_reg_outlined, kOrange),
+                        _Kpi('Total recaudado (USD)',
+                            '\$${recaudado.toStringAsFixed(2)}',
+                            Icons.payments_outlined, kNavy),
                       ],
                     ),
                     const SizedBox(height: 24),

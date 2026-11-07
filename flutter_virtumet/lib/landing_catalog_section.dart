@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_page.dart';
+import 'precio_utils.dart';
 
 /// Catálogo público de la landing: muestra en tiempo real las disciplinas que
 /// publica el administrador (colección `deportes`), con el mismo diseño de
@@ -306,6 +307,9 @@ class _LandingCatalogSectionState extends State<LandingCatalogSection> {
                   _detailRow(Icons.location_on_outlined, lugar),
                   const SizedBox(height: 4),
                   _detailRow(Icons.person_outline_rounded, 'Entrenador: $entrenador'),
+                  const SizedBox(height: 4),
+                  _detailRow(Icons.attach_money_rounded,
+                      'Precio: ${formatPrecio(precioDeDisciplina(m))} USD'),
                   const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

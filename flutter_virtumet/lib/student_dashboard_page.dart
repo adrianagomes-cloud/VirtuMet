@@ -119,6 +119,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
             final misInscripciones = allInscripciones.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
+              if (data['estado'] == 'Cancelada') return false;
               final String estId = (data['estudianteId'] ?? '').toString();
               final String estEmail =
                   (data['correoEstudiante'] ?? data['correo'] ?? '')
@@ -178,7 +179,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                           const SizedBox(width: 32),
                                           Expanded(
                                             flex: 1,
-                                            child: _buildRightSidebar(),
+                                            child: _buildRightSidebar(misInscripciones),
                                           ),
                                         ],
                                       ],
@@ -864,18 +865,21 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
-  Widget _buildRightSidebar() {
+  Widget _buildRightSidebar(List<DocumentSnapshot> misInscripciones) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildCriticalAlertsCard(),
+        _buildCriticalAlertsCard(misInscripciones),
         const SizedBox(height: 24),
         _buildUpcomingEventsCard(),
       ],
     );
   }
 
-  Widget _buildCriticalAlertsCard() {
+  /// Avisos del estudiante calculados en tiempo real: solo muestra las
+  /// disciplinas en las que está inscrito (no canceladas) que estén en
+  /// mantenimiento o inactivas.
+  Widget _buildCriticalAlertsCard(List<DocumentSnapshot> misInscripciones) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
@@ -891,8 +895,26 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _alertItem('Solicitud de cambio de horario: Voleibol'),
-          _alertItem('Mantenimiento Cancha 1: Mañana 08:00'),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) return const SizedBox.shrink();
+              final ids = misInscripciones
+                  .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
+                  .toSet();
+              final List<String> avisos = [];
+              for (final d in snap.data!.docs) {
+                if (!ids.contains(d.id)) continue;
+                final m = d.data() as Map<String, dynamic>;
+                final String estado = (m['estado'] ?? 'Activo').toString();
+                if (estado != 'Activo') {
+                  avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
+                }
+              }
+              if (avisos.isEmpty) return _alertItem('Sin avisos críticos por ahora.');
+              return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
+            },
+          ),
         ],
       ),
     );
