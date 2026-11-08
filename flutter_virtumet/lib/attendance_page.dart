@@ -25,8 +25,41 @@ class _AttendancePageState extends State<AttendancePage> {
 
   String _searchQuery = '';
   final Map<String, String> _attendanceMap = {};
-  final List<Map<String, String>> _recentActivity = [];
+  final List _recentActivity = [];
   bool _isSaving = false;
+  bool _hasLoadedExistingData = false;
+
+  // Variables para conservar las conexiones a Firestore y evitar parpadeos
+  late final Stream<DocumentSnapshot> _sportStream;
+  late final Stream<DocumentSnapshot> _asistenciaStream;
+  late final Stream<QuerySnapshot> _usersStream;
+  late final Stream<QuerySnapshot> _inscripcionesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final DateTime now = DateTime.now();
+    final String fechaHoyKey =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+    // Las conexiones a Firestore se inician UNA sola vez aquí
+    _sportStream = FirebaseFirestore.instance
+        .collection('deportes')
+        .doc(widget.deporteId)
+        .snapshots();
+
+    _asistenciaStream = FirebaseFirestore.instance
+        .collection('asistencias')
+        .doc('${widget.deporteId}_$fechaHoyKey')
+        .snapshots();
+
+    _usersStream = FirebaseFirestore.instance.collection('users').snapshots();
+
+    _inscripcionesStream = FirebaseFirestore.instance
+        .collection('inscripciones')
+        .where('deporteId', isEqualTo: widget.deporteId)
+        .snapshots();
+  }
 
   String _formatFechaHoy() {
     final now = DateTime.now();
@@ -123,324 +156,333 @@ class _AttendancePageState extends State<AttendancePage> {
         ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        // 1. DETALLES DE LA SESIÓN DESDE LA COLECCIÓN 'DEPORTES'
-        stream: FirebaseFirestore.instance
-            .collection('deportes')
-            .doc(widget.deporteId)
-            .snapshots(),
+        stream: _sportStream,
         builder: (context, sportSnapshot) {
           final sportData =
               sportSnapshot.data?.data() as Map<String, dynamic>?;
 
-          final String horarioReal = sportData?['horario'] ?? 'Lunes/Martes 2:00 - 4:00';
-          final String lugarReal = sportData?['lugar'] ?? 'Cancha de fútbol';
+          final String horarioReal = sportData?['horario'] ?? 'Por definir';
+          final String lugarReal = sportData?['lugar'] ?? 'Instalaciones UNIMET';
 
-          return StreamBuilder<QuerySnapshot>(
-            // 2. OBTENER USUARIOS DE LA COLECCIÓN 'USERS' EN TIEMPO REAL
-            stream: FirebaseFirestore.instance.collection('users').snapshots(),
-            builder: (context, usersSnapshot) {
-              final usersDocs = usersSnapshot.data?.docs ?? [];
+          return StreamBuilder<DocumentSnapshot>(
+            stream: _asistenciaStream,
+            builder: (context, asistenciaSnapshot) {
+              if (asistenciaSnapshot.hasData &&
+                  asistenciaSnapshot.data!.exists &&
+                  !_hasLoadedExistingData) {
+                final asistenciaData =
+                    asistenciaSnapshot.data!.data() as Map<String, dynamic>?;
+                final Map<String, dynamic>? mapGuardado =
+                    asistenciaData?['asistencias'] as Map<String, dynamic>?;
+
+                if (mapGuardado != null) {
+                  _hasLoadedExistingData = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        mapGuardado.forEach((key, value) {
+                          _attendanceMap[key] = value.toString();
+                        });
+                      });
+                    }
+                  });
+                }
+              }
 
               return StreamBuilder<QuerySnapshot>(
-                // 3. OBTENER INSCRIPCIONES FILTRADAS POR EL DEPORTE
-                stream: FirebaseFirestore.instance
-                    .collection('inscripciones')
-                    .where('deporteId', isEqualTo: widget.deporteId)
-                    .snapshots(),
-                builder: (context, inscripcionesSnapshot) {
-                  if (inscripcionesSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: orangePrimary),
-                    );
-                  }
+                stream: _usersStream,
+                builder: (context, usersSnapshot) {
+                  final usersDocs = usersSnapshot.data?.docs ?? [];
 
-                  final inscripcionesDocs =
-                      inscripcionesSnapshot.data?.docs ?? [];
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: _inscripcionesStream,
+                    builder: (context, inscripcionesSnapshot) {
+                      // Se muestra cargador SOLAMENTE si es la primera carga y no hay datos en caché
+                      if (inscripcionesSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          !inscripcionesSnapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: orangePrimary),
+                        );
+                      }
 
-                  List<Map<String, dynamic>> alumnosInscritos = [];
+                      final inscripcionesDocs =
+                          inscripcionesSnapshot.data?.docs ?? [];
 
-                  for (var inscripDoc in inscripcionesDocs) {
-                    final iData = inscripDoc.data() as Map<String, dynamic>;
-                    final String estado =
-                        (iData['estado'] ?? 'Confirmada').toString().toLowerCase();
+                      List alumnosInscritos = [];
 
-                    if (estado != 'cancelada' && estado != 'inactiva') {
-                      final String estId = (iData['estudianteId'] ?? '').toString();
-                      final String estEmail =
-                          (iData['correoEstudiante'] ?? iData['correo'] ?? '')
-                              .toString()
-                              .toLowerCase();
+                      for (var inscripDoc in inscripcionesDocs) {
+                        final iData = inscripDoc.data() as Map<String, dynamic>;
+                        final String estado =
+                            (iData['estado'] ?? 'Confirmada').toString().toLowerCase();
 
-                      // BUSCAR EL PERFIL REAL DEL ESTUDIANTE EN 'USERS'
-                      Map<String, dynamic>? userData;
-                      if (usersDocs.isNotEmpty) {
-                        final userMatches = usersDocs.where((uDoc) {
-                          final uData = uDoc.data() as Map<String, dynamic>;
-                          final String uEmail =
-                              (uData['correo'] ?? uData['email'] ?? '')
+                        if (estado != 'cancelada' && estado != 'inactiva') {
+                          final String estId = (iData['estudianteId'] ?? '').toString();
+                          final String estEmail =
+                              (iData['correoEstudiante'] ?? iData['correo'] ?? '')
                                   .toString()
                                   .toLowerCase();
-                          return uDoc.id == estId ||
-                              uDoc.id == _currentUser?.uid ||
-                              (estEmail.isNotEmpty && uEmail == estEmail) ||
-                              (uEmail == _currentUser?.email?.toLowerCase());
-                        });
 
-                        if (userMatches.isNotEmpty) {
-                          userData = userMatches.first.data() as Map<String, dynamic>;
+                          Map<String, dynamic>? userData;
+                          if (usersDocs.isNotEmpty) {
+                            final userMatches = usersDocs.where((uDoc) {
+                              final uData = uDoc.data() as Map<String, dynamic>;
+                              final String uEmail =
+                                  (uData['correo'] ?? uData['email'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+                              return uDoc.id == estId ||
+                                  (estEmail.isNotEmpty && uEmail == estEmail);
+                            });
+
+                            if (userMatches.isNotEmpty) {
+                              userData = userMatches.first.data() as Map<String, dynamic>;
+                            }
+                          }
+
+                          String nombreReal = (userData?['nombreApellido'] ??
+                                  userData?['nombreCompleto'] ??
+                                  userData?['nombre'] ??
+                                  iData['nombreEstudiante'] ??
+                                  'Estudiante')
+                              .toString()
+                              .trim();
+
+                          final String carnetReal = (userData?['carnet'] ??
+                                  userData?['cedula'] ??
+                                  iData['carnet'] ??
+                                  'N/A')
+                              .toString();
+
+                          final String facultadReal = (userData?['carrera'] ??
+                                  userData?['facultad'] ??
+                                  iData['carrera'] ??
+                                  'Estudiante UNIMET')
+                              .toString();
+
+                          alumnosInscritos.add({
+                            'key': estId.isNotEmpty ? estId : inscripDoc.id,
+                            'nombre': nombreReal,
+                            'carnet': carnetReal,
+                            'facultad': facultadReal,
+                            'rendimiento': '90%',
+                          });
                         }
                       }
 
-                      // OBTENER NOMBRE REAL (PRIORIDAD: USERS -> AUTH -> INSCRIPCIÓN)
-                      String nombreReal = (userData?['nombreApellido'] ??
-                              userData?['nombreCompleto'] ??
-                              userData?['nombre'] ??
-                              _currentUser?.displayName ??
-                              iData['nombreEstudiante'] ??
-                              'Juan')
-                          .toString()
-                          .trim();
+                      // Métricas dinámicas
+                      int presentes = 0;
+                      int ausentes = 0;
+                      int retrasos = 0;
+                      int pendientes = 0;
 
-                      // Si el nombre resultante sigue diciendo "Santiago Marquez", se fuerza al usuario activo "Juan"
-                      if (nombreReal.toLowerCase().contains('santiago marquez') &&
-                          _currentUser?.email != null) {
-                        nombreReal = 'Juan';
+                      for (var alumno in alumnosInscritos) {
+                        final status =
+                            _attendanceMap[alumno['key']] ?? 'pendiente';
+                        if (status == 'presente') presentes++;
+                        if (status == 'ausente') ausentes++;
+                        if (status == 'retraso') retrasos++;
+                        if (status == 'pendiente') pendientes++;
                       }
 
-                      final String carnetReal = (userData?['carnet'] ??
-                              userData?['cedula'] ??
-                              iData['carnet'] ??
-                              '20260001')
-                          .toString();
+                      final alumnosFiltrados = alumnosInscritos.where((a) {
+                        final name = a['nombre'].toString().toLowerCase();
+                        final carnet = a['carnet'].toString().toLowerCase();
+                        return name.contains(_searchQuery) ||
+                            carnet.contains(_searchQuery);
+                      }).toList();
 
-                      final String facultadReal = (userData?['carrera'] ??
-                              userData?['facultad'] ??
-                              iData['carrera'] ??
-                              'Ingeniería de Sistemas')
-                          .toString();
-
-                      alumnosInscritos.add({
-                        'key': estId.isNotEmpty ? estId : inscripDoc.id,
-                        'nombre': nombreReal,
-                        'carnet': carnetReal,
-                        'facultad': facultadReal,
-                        'rendimiento': '90%',
-                      });
-                    }
-                  }
-
-                  // Métricas dinámicas
-                  int presentes = 0;
-                  int ausentes = 0;
-                  int retrasos = 0;
-                  int pendientes = 0;
-
-                  for (var alumno in alumnosInscritos) {
-                    final status =
-                        _attendanceMap[alumno['key']] ?? 'pendiente';
-                    if (status == 'presente') presentes++;
-                    if (status == 'ausente') ausentes++;
-                    if (status == 'retraso') retrasos++;
-                    if (status == 'pendiente') pendientes++;
-                  }
-
-                  final alumnosFiltrados = alumnosInscritos.where((a) {
-                    final name = a['nombre'].toString().toLowerCase();
-                    final carnet = a['carnet'].toString().toLowerCase();
-                    return name.contains(_searchQuery) ||
-                        carnet.contains(_searchQuery);
-                  }).toList();
-
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Registra la participación de hoy en ${widget.deporteNombre}',
-                          style:
-                              const TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // TARJETAS KPIS
-                        Row(
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _kpiStat('PRESENTES', presentes.toString(),
-                                Colors.green),
-                            const SizedBox(width: 16),
-                            _kpiStat(
-                                'AUSENTES', ausentes.toString(), Colors.red),
-                            const SizedBox(width: 16),
-                            _kpiStat(
-                                'RETRASOS', retrasos.toString(), Colors.orange),
-                            const SizedBox(width: 16),
-                            _kpiStat(
-                                'PENDIENTES', pendientes.toString(), blueDark),
-                          ],
-                        ),
-                        const SizedBox(height: 28),
+                            Text(
+                              'Registra la participación de hoy en ${widget.deporteNombre}',
+                              style:
+                                  const TextStyle(fontSize: 13, color: Colors.grey),
+                            ),
+                            const SizedBox(height: 20),
 
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final bool isDesktop = constraints.maxWidth > 900;
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            // TARJETAS KPIS
+                            Row(
                               children: [
-                                Expanded(
-                                  flex: isDesktop ? 2 : 1,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(24),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                          color: const Color(0xFFCBD5E1)),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
+                                _kpiStat('PRESENTES', presentes.toString(),
+                                    Colors.green),
+                                const SizedBox(width: 16),
+                                _kpiStat(
+                                    'AUSENTES', ausentes.toString(), Colors.red),
+                                const SizedBox(width: 16),
+                                _kpiStat(
+                                    'RETRASOS', retrasos.toString(), Colors.orange),
+                                const SizedBox(width: 16),
+                                _kpiStat(
+                                    'PENDIENTES', pendientes.toString(), blueDark),
+                              ],
+                            ),
+                            const SizedBox(height: 28),
+
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final bool isDesktop = constraints.maxWidth > 900;
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: isDesktop ? 2 : 1,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(24),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: const Color(0xFFCBD5E1)),
+                                        ),
+                                        child: Column(
                                           children: [
-                                            Expanded(
-                                              child: SizedBox(
-                                                height: 40,
-                                                child: TextField(
-                                                  onChanged: (v) {
-                                                    setState(() {
-                                                      _searchQuery =
-                                                          v.toLowerCase().trim();
-                                                    });
-                                                  },
-                                                  decoration: InputDecoration(
-                                                    hintText:
-                                                        'Buscar por nombre o carnet...',
-                                                    hintStyle: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey),
-                                                    prefixIcon: const Icon(
-                                                        Icons.search,
-                                                        size: 18,
-                                                        color: Colors.grey),
-                                                    filled: true,
-                                                    fillColor:
-                                                        const Color(0xFFF3F5F8),
-                                                    border: OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(10),
-                                                      borderSide: BorderSide.none,
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: SizedBox(
+                                                    height: 40,
+                                                    child: TextField(
+                                                      onChanged: (v) {
+                                                        setState(() {
+                                                          _searchQuery =
+                                                              v.toLowerCase().trim();
+                                                        });
+                                                      },
+                                                      decoration: InputDecoration(
+                                                        hintText:
+                                                            'Buscar por nombre o carnet...',
+                                                        hintStyle: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.grey),
+                                                        prefixIcon: const Icon(
+                                                            Icons.search,
+                                                            size: 18,
+                                                            color: Colors.grey),
+                                                        filled: true,
+                                                        fillColor:
+                                                            const Color(0xFFF3F5F8),
+                                                        border: OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(10),
+                                                          borderSide: BorderSide.none,
+                                                        ),
+                                                        contentPadding: EdgeInsets.zero,
+                                                      ),
                                                     ),
-                                                    contentPadding: EdgeInsets.zero,
                                                   ),
                                                 ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            ElevatedButton.icon(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: orangePrimary,
-                                                foregroundColor: Colors.white,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 18, vertical: 14),
-                                              ),
-                                              onPressed: _isSaving
-                                                  ? null
-                                                  : () =>
-                                                      _saveSession(fechaHoyKey),
-                                              icon: _isSaving
-                                                  ? const SizedBox(
-                                                      width: 14,
-                                                      height: 14,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        color: Colors.white,
-                                                        strokeWidth: 2,
-                                                      ),
-                                                    )
-                                                  : const Icon(Icons.save,
-                                                      size: 16),
-                                              label: Text(
-                                                _isSaving
-                                                    ? 'Guardando...'
-                                                    : 'Guardar Sesión',
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 20),
-
-                                        if (alumnosFiltrados.isEmpty)
-                                          Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.all(30),
-                                            child: const Column(
-                                              children: [
-                                                Icon(
-                                                  Icons.people_outline,
-                                                  size: 40,
-                                                  color: Colors.grey,
-                                                ),
-                                                SizedBox(height: 8),
-                                                Text(
-                                                  'No hay estudiantes inscritos en esta disciplina.',
-                                                  style: TextStyle(
-                                                      color: blueDark,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 13),
+                                                const SizedBox(width: 12),
+                                                ElevatedButton.icon(
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: orangePrimary,
+                                                    foregroundColor: Colors.white,
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(10),
+                                                    ),
+                                                    padding: const EdgeInsets.symmetric(
+                                                        horizontal: 18, vertical: 14),
+                                                  ),
+                                                  onPressed: _isSaving
+                                                      ? null
+                                                      : () =>
+                                                          _saveSession(fechaHoyKey),
+                                                  icon: _isSaving
+                                                      ? const SizedBox(
+                                                          width: 14,
+                                                          height: 14,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                            color: Colors.white,
+                                                            strokeWidth: 2,
+                                                          ),
+                                                        )
+                                                      : const Icon(Icons.save,
+                                                          size: 16),
+                                                  label: Text(
+                                                    _isSaving
+                                                        ? 'Guardando...'
+                                                        : 'Guardar Sesión',
+                                                    style: const TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 12),
+                                                  ),
                                                 ),
                                               ],
                                             ),
-                                          )
-                                        else
-                                          ...alumnosFiltrados.map((alumno) {
-                                            final String key = alumno['key'];
-                                            final String status =
-                                                _attendanceMap[key] ?? 'pendiente';
+                                            const SizedBox(height: 20),
 
-                                            return _studentRow(
-                                              studentKey: key,
-                                              nombre: alumno['nombre'],
-                                              carnet: alumno['carnet'],
-                                              facultad: alumno['facultad'],
-                                              rendimiento: alumno['rendimiento'],
-                                              currentStatus: status,
-                                            );
-                                          }),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                            if (alumnosFiltrados.isEmpty)
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(30),
+                                                child: const Column(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.people_outline,
+                                                      size: 40,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    SizedBox(height: 8),
+                                                    Text(
+                                                      'No hay estudiantes inscritos en esta disciplina.',
+                                                      style: TextStyle(
+                                                          color: blueDark,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 13),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            else
+                                              ...alumnosFiltrados.map((alumno) {
+                                                final String key = alumno['key'];
+                                                final String status =
+                                                    _attendanceMap[key] ?? 'pendiente';
 
-                                if (isDesktop) const SizedBox(width: 24),
-
-                                if (isDesktop)
-                                  Expanded(
-                                    flex: 1,
-                                    child: Column(
-                                      children: [
-                                        _buildSessionDetailsCard(
-                                          horario: horarioReal,
-                                          lugar: lugarReal,
+                                                return _studentRow(
+                                                  studentKey: key,
+                                                  nombre: alumno['nombre'],
+                                                  carnet: alumno['carnet'],
+                                                  facultad: alumno['facultad'],
+                                                  rendimiento: alumno['rendimiento'],
+                                                  currentStatus: status,
+                                                );
+                                              }),
+                                          ],
                                         ),
-                                        const SizedBox(height: 20),
-                                        _buildRecentActivityCard(),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                              ],
-                            );
-                          },
+
+                                    if (isDesktop) const SizedBox(width: 24),
+
+                                    if (isDesktop)
+                                      Expanded(
+                                        flex: 1,
+                                        child: Column(
+                                          children: [
+                                            _buildSessionDetailsCard(
+                                              horario: horarioReal,
+                                              lugar: lugarReal,
+                                            ),
+                                            const SizedBox(height: 20),
+                                            _buildRecentActivityCard(),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               );
@@ -485,7 +527,9 @@ class _AttendancePageState extends State<AttendancePage> {
     required String currentStatus,
   }) {
     final initials =
-        nombre.isNotEmpty ? nombre.substring(0, 2).toUpperCase() : 'JU';
+        nombre.isNotEmpty && nombre.length >= 2
+            ? nombre.substring(0, 2).toUpperCase()
+            : 'EST';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

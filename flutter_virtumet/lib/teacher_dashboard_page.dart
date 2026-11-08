@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'attendance_page.dart';
 import 'teacher_profile_page.dart';
-import 'teacher_reviews_view.dart'; // <-- Conexión limpia y directa con las reseñas del profesor
+import 'teacher_reviews_view.dart';// <-- Conexión limpia y directa con las reseñas del profesor
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -251,121 +251,195 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildTopNavbar(
-      BuildContext context, String userId, String nombre, String photoUrl) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Image.asset(
-            'lib/assets/Logo.png',
-            height: 58,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Text(
-              'VirtuMet',
+Widget _buildTopNavbar(
+    BuildContext context, String userId, String nombre, String photoUrl) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
+    color: Colors.white,
+    child: Row(
+      children: [
+        Image.asset(
+          'lib/assets/Logo.png',
+          height: 58,
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => const Text(
+            'VirtuMet',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: blueDark,
+            ),
+          ),
+        ),
+        const SizedBox(width: 40),
+
+        // 1. BOTÓN "MIS DISCIPLINAS"
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TeacherSportsPage(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              'Mis Disciplinas',
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
                 color: blueDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
             ),
           ),
-          const SizedBox(width: 40),
-          _navLink('Mis Disciplinas'),
-          _navLink('Nómina y Asistencia'),
-          _navLink('Anuncios'),
-          _navLink('Comunidad'),
-          
-          // Enlace directo a las calificaciones y reseñas del profesor
-          InkWell(
-            onTap: () {
+        ),
+
+        // 2. BOTÓN "NÓMINA Y ASISTENCIA"
+        InkWell(
+          onTap: () async {
+            final sportsSnapshot = await FirebaseFirestore.instance
+                .collection('deportes')
+                .get();
+
+            final mySports = sportsSnapshot.docs.where((doc) {
+              final sData = doc.data();
+              final String entUid = (sData['entrenadorUid'] ?? '').toString().trim();
+              final String entNombre = (sData['entrenador'] ?? '').toString().trim().toLowerCase();
+              return entUid == userId ||
+                  (nombre.isNotEmpty && entNombre == nombre.toLowerCase().trim());
+            }).toList();
+
+            if (!context.mounted) return;
+
+            if (mySports.isNotEmpty) {
+              final firstDoc = mySports.first;
+              final sData = firstDoc.data();
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const TeacherReviewsView(),
+                  builder: (_) => AttendancePage(
+                    deporteId: firstDoc.id,
+                    deporteNombre: sData['nombre'] ?? 'Deporte',
+                  ),
                 ),
               );
-            },
-            borderRadius: BorderRadius.circular(6),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Text(
-                'Mis Reseñas',
-                style: TextStyle(
-                  color: blueDark,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No tienes disciplinas asignadas aún.'),
                 ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              'Nómina y Asistencia',
+              style: TextStyle(
+                color: blueDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
             ),
           ),
+        ),
+        
+        _navLink('Anuncios'),
+        _navLink('Comunidad'),
+        
+        // 3. BOTÓN "MIS RESEÑAS"
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TeacherReviewsView(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              'Mis Reseñas',
+              style: TextStyle(
+                color: blueDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
 
-          const Spacer(),
-          Row(
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const TeacherProfilePage(),
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: blueDark.withValues(alpha: 0.08),
-                          border: Border.all(
-                            color: orangePrimary.withValues(alpha: 0.5),
-                            width: 1.5,
-                          ),
-                          image: photoUrl.isNotEmpty
-                              ? DecorationImage(
-                                  image: NetworkImage(photoUrl),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
+        const Spacer(),
+        Row(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TeacherProfilePage(),
+                  ),
+                );
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: blueDark.withValues(alpha: 0.08),
+                        border: Border.all(
+                          color: orangePrimary.withValues(alpha: 0.5),
+                          width: 1.5,
                         ),
-                        child: photoUrl.isEmpty
-                            ? const Icon(Icons.person_outline,
-                                size: 18, color: blueDark)
+                        image: photoUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(photoUrl),
+                                fit: BoxFit.cover,
+                              )
                             : null,
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        nombre,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: blueDark,
-                            fontSize: 13),
-                      ),
-                    ],
-                  ),
+                      child: photoUrl.isEmpty
+                          ? const Icon(Icons.person_outline,
+                              size: 18, color: blueDark)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      nombre,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: blueDark,
+                          fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              IconButton(
-                icon: const Icon(Icons.logout_rounded,
-                    size: 18, color: Colors.grey),
-                onPressed: _handleLogout,
-                tooltip: 'Cerrar Sesión',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+            ),
+            const SizedBox(width: 12),
+            IconButton(
+              icon: const Icon(Icons.logout_rounded,
+                  size: 18, color: Colors.grey),
+              onPressed: _handleLogout,
+              tooltip: 'Cerrar Sesión',
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _navLink(String title) {
     return Padding(
@@ -925,6 +999,205 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       child: const Text(
         '© 2026 Samán Deportivo · Universidad Metropolitana',
         style: TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+    );
+  }
+}
+class TeacherSportsPage extends StatelessWidget {
+  const TeacherSportsPage({super.key});
+
+  static const Color orangePrimary = Color(0xFFFF5500);
+  static const Color blueDark = Color(0xFF0F2C59);
+  static const Color bgLight = Color(0xFFF4F6F9);
+
+  @override
+  Widget build(BuildContext context) {
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return const Scaffold(
+        body: Center(child: Text('Sesión no iniciada.')),
+      );
+    }
+
+    final String userId = currentUser.uid;
+
+    return Scaffold(
+      backgroundColor: bgLight,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: blueDark),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'MIS DISCIPLINAS ASIGNADAS',
+          style: TextStyle(
+            color: blueDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .snapshots(),
+        builder: (context, userSnapshot) {
+          final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+          final String rawNombre = userData?['nombreApellido'] ??
+              userData?['nombreCompleto'] ??
+              userData?['nombre'] ??
+              currentUser.displayName ??
+              '';
+          final String nombreUsuario = rawNombre.trim().toLowerCase();
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+            builder: (context, sportsSnapshot) {
+              if (sportsSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: orangePrimary),
+                );
+              }
+
+              final allDocs = sportsSnapshot.data?.docs ?? [];
+
+              // Filtra únicamente las disciplinas donde está asignado el entrenador
+              final mySportsDocs = allDocs.where((doc) {
+                final sData = doc.data() as Map<String, dynamic>;
+                final String entUid = (sData['entrenadorUid'] ??
+                        sData['entrenadorId'] ??
+                        '')
+                    .toString()
+                    .trim();
+                final String entNombre =
+                    (sData['entrenador'] ?? '').toString().trim().toLowerCase();
+
+                return entUid == userId ||
+                    (nombreUsuario.isNotEmpty && entNombre == nombreUsuario);
+              }).toList();
+
+              if (mySportsDocs.isEmpty) {
+                return Center(
+                  child: Container(
+                    margin: const EdgeInsets.all(30),
+                    padding: const EdgeInsets.all(30),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sports_outlined, size: 48, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text(
+                          'No tienes disciplinas asignadas actualmente en tu cuenta.',
+                          style: TextStyle(
+                            color: blueDark,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(24),
+                itemCount: mySportsDocs.length,
+                itemBuilder: (context, index) {
+                  final doc = mySportsDocs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  final String deporteId = doc.id;
+                  final String nombre = data['nombre'] ?? 'Deporte';
+                  final String horario = data['horario'] ?? 'Por definir';
+                  final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
+                  final int inscritos = (data['cuposInscritos'] ?? 0) as int;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: orangePrimary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.sports, color: orangePrimary, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nombre,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: blueDark,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$horario  •  $lugar',
+                                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$inscritos Atletas Inscritos',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: orangePrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: orangePrimary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AttendancePage(
+                                  deporteId: deporteId,
+                                  deporteNombre: nombre,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text('PASAR ASISTENCIA'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
