@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'aviso_audiencia.dart';
 
-/// Pestaña "Avisos" del estudiante: muestra solo los avisos que el
-/// administrador dejó en estado "Activo" (colección `avisos`).
+/// Pestaña "Avisos": muestra solo los avisos que el administrador dejó en
+/// estado "Activo" (colección `avisos`) y que van dirigidos a [audiencia]
+/// ('Estudiantes' por defecto; el panel del entrenador usa 'Entrenadores').
+/// Los avisos dirigidos a 'Todos' los ven ambos.
 class StudentAnnouncementsView extends StatelessWidget {
-  const StudentAnnouncementsView({super.key});
+  final String audiencia;
+  const StudentAnnouncementsView({super.key, this.audiencia = 'Estudiantes'});
 
   static const navy = Color(0xFF0F2C59);
   static const orange = Color(0xFFFF5500);
@@ -47,7 +51,9 @@ class StudentAnnouncementsView extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               // Más recientes primero
-              final docs = snapshot.data!.docs.toList()
+              final docs = snapshot.data!.docs
+                  .where((d) => avisoDirigidoA(d.data(), audiencia))
+                  .toList()
                 ..sort((a, b) {
                   final ta = a.data()['creadoEn'];
                   final tb = b.data()['creadoEn'];

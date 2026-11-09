@@ -5,6 +5,8 @@ import 'login_page.dart';
 import 'attendance_page.dart';
 import 'teacher_profile_page.dart';
 import 'teacher_reviews_view.dart';
+import 'student_announcements_view.dart';
+import 'aviso_audiencia.dart';
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -203,6 +205,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
                             if (_selectedIndex == 4)
                               const TeacherReviewsView()
+                            else if (_selectedIndex == 1)
+                              // Pestaña Anuncios: avisos activos del admin
+                              // dirigidos a entrenadores (o a todos)
+                              const StudentAnnouncementsView(
+                                  audiencia: 'Entrenadores')
                             else
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,6 +770,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 final docs = avisosSnap.data!.docs;
                 for (var doc in docs) {
                   final data = doc.data() as Map<String, dynamic>;
+                  // Solo los avisos dirigidos a entrenadores (o a todos)
+                  if (!avisoDirigidoA(data, 'Entrenadores')) continue;
                   final titulo = data['titulo'] ?? 'Aviso';
                   final mensaje = data['mensaje'] ?? '';
                   comunicados.add('$titulo: $mensaje');

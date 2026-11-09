@@ -6,6 +6,7 @@ import 'student_sports_view.dart';
 import 'student_profile_page.dart';
 import 'student_review_form_view.dart';
 import 'student_announcements_view.dart';
+import 'aviso_audiencia.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -978,7 +979,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   // 1) Avisos del administrador (Urgente primero)
                   final comunicados = (avisosSnap.data?.docs ?? [])
                       .map((d) => d.data() as Map<String, dynamic>)
-                      .where((m) => (m['prioridad'] ?? 'Normal') != 'Normal')
+                      .where((m) =>
+                          (m['prioridad'] ?? 'Normal') != 'Normal' &&
+                          avisoDirigidoA(m, 'Estudiantes'))
                       .toList()
                     ..sort((a, b) {
                       int peso(Map<String, dynamic> m) =>

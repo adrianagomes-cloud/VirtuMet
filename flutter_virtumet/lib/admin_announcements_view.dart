@@ -1,16 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'aviso_audiencia.dart';
 
 /// Avisos administrables (CRUD sobre la colección `avisos` de Firestore).
 ///
 /// Campos de cada aviso:
 ///   titulo, mensaje, prioridad (Normal | Importante | Urgente),
+///   audiencia (Todos | Estudiantes | Entrenadores),
 ///   estado (Activo | Inactivo), creadoEn, actualizadoEn, creadoPor.
 ///
 /// El admin puede crear, editar, activar/desactivar y eliminar avisos.
-/// Los estudiantes solo ven los avisos en estado "Activo"
-/// (ver student_announcements_view.dart).
+/// Estudiantes y entrenadores solo ven los avisos en estado "Activo" que
+/// van dirigidos a ellos (ver student_announcements_view.dart).
 class AdminAnnouncementsView extends StatefulWidget {
   const AdminAnnouncementsView({super.key});
 
@@ -63,6 +65,7 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
         'titulo': resultado['titulo'],
         'mensaje': resultado['mensaje'],
         'prioridad': resultado['prioridad'],
+        'audiencia': resultado['audiencia'],
         'actualizadoEn': FieldValue.serverTimestamp(),
       };
       if (doc == null) {
@@ -197,6 +200,7 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                   final data = doc.data();
                   final prioridad = (data['prioridad'] ?? 'Normal').toString();
                   final activo = (data['estado'] ?? 'Activo') == 'Activo';
+                  final audiencia = (data['audiencia'] ?? 'Todos').toString();
                   final color = _colorPrioridad(prioridad);
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -241,6 +245,20 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                                         child: Text(prioridad,
                                             style: TextStyle(
                                                 color: color,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: navy.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text('Para: $audiencia',
+                                            style: const TextStyle(
+                                                color: navy,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w600)),
                                       ),
@@ -309,6 +327,7 @@ class _AvisoDialogState extends State<_AvisoDialog> {
   late final TextEditingController _titulo;
   late final TextEditingController _mensaje;
   late String _prioridad;
+  late String _audiencia;
   bool _intentoGuardar = false;
 
   @override
@@ -317,6 +336,9 @@ class _AvisoDialogState extends State<_AvisoDialog> {
     _titulo = TextEditingController(text: (widget.inicial?['titulo'] ?? '').toString());
     _mensaje = TextEditingController(text: (widget.inicial?['mensaje'] ?? '').toString());
     _prioridad = (widget.inicial?['prioridad'] ?? 'Normal').toString();
+    // Avisos antiguos sin el campo se consideran dirigidos a todos
+    _audiencia = (widget.inicial?['audiencia'] ?? 'Todos').toString();
+    if (!kAudiencias.contains(_audiencia)) _audiencia = 'Todos';
   }
 
   @override
@@ -335,6 +357,7 @@ class _AvisoDialogState extends State<_AvisoDialog> {
       'titulo': titulo,
       'mensaje': mensaje,
       'prioridad': _prioridad,
+      'audiencia': _audiencia,
     });
   }
 
@@ -383,6 +406,27 @@ class _AvisoDialogState extends State<_AvisoDialog> {
                         label: Text(p),
                         selected: _prioridad == p,
                         onSelected: (_) => setState(() => _prioridad = p),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Dirigido a:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final a in kAudiencias)
+                      ChoiceChip(
+                        label: Text(a),
+                        selected: _audiencia == a,
+                        onSelected: (_) => setState(() => _audiencia = a),
                       ),
                   ],
                 ),
