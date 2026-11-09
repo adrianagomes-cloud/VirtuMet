@@ -664,6 +664,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
                   final int atletas = (data['cuposInscritos'] ?? 0) as int;
                   final String estado = (data['estado'] ?? 'ACTIVA').toString().toUpperCase();
+                  final String imageUrl = (data['imageUrl'] ?? '').toString();
 
                   return _sportAdminRow(
                     nombre,
@@ -671,6 +672,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     lugar,
                     atletas,
                     estado,
+                    imageUrl,
                   );
                 }).toList(),
               );
@@ -682,7 +684,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _sportAdminRow(String nombre, String entrenador, String lugar,
-      int atletas, String estado) {
+      int atletas, String estado, String imageUrl) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
@@ -693,13 +695,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 48,
+              height: 48,
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+                    ),
             ),
-            child: const Icon(Icons.sports_soccer, color: blueDark, size: 22),
           ),
           const SizedBox(width: 16),
           Expanded(
