@@ -8,6 +8,7 @@ import 'admin_fichas_view.dart';
 import 'admin_stats_view.dart';
 import 'admin_events_view.dart';
 import 'admin_reviews_view.dart'; // <-- Vista de reseñas del administrador
+import 'admin_announcements_view.dart'; // Avisos administrables (CRUD)
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -27,6 +28,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // 4: Eventos (AdminEventsView)
   // 5: Reportes y Avisos
   // 6: Reseñas (AdminReviewsView)
+  // 7: Avisos (AdminAnnouncementsView)
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -70,6 +72,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const AdminStatsView(),
             ] else if (_selectedIndex == 6) ...[
               const AdminReviewsView(), // <-- Integración exacta de la vista de reseñas
+            ] else if (_selectedIndex == 7) ...[
+              const AdminAnnouncementsView(),
             ] else ...[
               _buildHeroBanner(nombreAdmin),
 
@@ -169,6 +173,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navLink('Eventos', targetIndex: 4),
           _navLink('Reportes y Avisos', targetIndex: 5),
           _navLink('Reseñas', targetIndex: 6), // <-- Pestaña de Reseñas restaurada en la barra
+          _navLink('Avisos', targetIndex: 7),
 
           const Spacer(),
 

@@ -5,6 +5,7 @@ import 'login_page.dart';
 import 'student_sports_view.dart';
 import 'student_profile_page.dart';
 import 'student_review_form_view.dart';
+import 'student_announcements_view.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -16,7 +17,7 @@ class StudentDashboardPage extends StatefulWidget {
 class _StudentDashboardPageState extends State<StudentDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 4: Mis Reseñas
+  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 4: Mis Reseñas, 5: Avisos
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -155,6 +156,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       )
                     else if (_selectedIndex == 4)
                       _buildStudentReviewsView(authUid)
+                    else if (_selectedIndex == 5)
+                      const StudentAnnouncementsView()
                     else
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,6 +247,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           _navLink('Mis Actividades', targetIndex: 2),
           _navLink('Comunidad', targetIndex: 3),
           _navLink('Mis Reseñas', targetIndex: 4),
+          _navLink('Avisos', targetIndex: 5),
           const Spacer(),
           Row(
             children: [
@@ -957,25 +961,67 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
+          // Comunicados del administrador: solo los activos y con prioridad
+          // Importante o Urgente (los Normales se ven en la pestaña Avisos).
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
-            builder: (context, snap) {
-              if (!snap.hasData) return const SizedBox.shrink();
-              final ids = misInscripciones
-                  .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
-                  .toSet();
-              final List<String> avisos = [];
-              for (final d in snap.data!.docs) {
-                if (!ids.contains(d.id)) continue;
-                final m = d.data() as Map<String, dynamic>;
-                final String estado = (m['estado'] ?? 'Activo').toString();
-                if (estado != 'Activo') {
-                  avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
-                }
-              }
-              if (avisos.isEmpty) return _alertItem('Sin avisos críticos por ahora.');
-              return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
+            stream: FirebaseFirestore.instance
+                .collection('avisos')
+                .where('estado', isEqualTo: 'Activo')
+                .snapshots(),
+            builder: (context, avisosSnap) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+                builder: (context, snap) {
+                  if (!snap.hasData) return const SizedBox.shrink();
+                  final List<String> avisos = [];
+
+                  // 1) Avisos del administrador (Urgente primero)
+                  final comunicados = (avisosSnap.data?.docs ?? [])
+                      .map((d) => d.data() as Map<String, dynamic>)
+                      .where((m) => (m['prioridad'] ?? 'Normal') != 'Normal')
+                      .toList()
+                    ..sort((a, b) {
+                      int peso(Map<String, dynamic> m) =>
+                          (m['prioridad'] ?? '') == 'Urgente' ? 0 : 1;
+                      return peso(a).compareTo(peso(b));
+                    });
+                  for (final m in comunicados) {
+                    avisos.add('${m['titulo'] ?? 'Aviso'}: ${m['mensaje'] ?? ''}');
+                  }
+
+                  // 2) Avisos automáticos: inscripciones propias sin pago registrado
+                  for (final i in misInscripciones) {
+                    final m = i.data() as Map<String, dynamic>;
+                    if (m['pagado'] != true) {
+                      avisos.add('Pago pendiente en ${m['nombreDeporte'] ?? 'tu disciplina'}');
+                    }
+                  }
+
+                  // 3) Estado de las disciplinas en las que está inscrito
+                  final ids = misInscripciones
+                      .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
+                      .toSet();
+                  for (final d in snap.data!.docs) {
+                    if (!ids.contains(d.id)) continue;
+                    final m = d.data() as Map<String, dynamic>;
+                    final String estado = (m['estado'] ?? 'Activo').toString();
+                    if (estado != 'Activo') {
+                      avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
+                    }
+                  }
+                  if (avisos.isEmpty) return _alertItem('Sin avisos críticos por ahora.');
+                  return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
+                },
+              );
             },
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 5),
+            child: const Text(
+              'VER TODOS LOS AVISOS >',
+              style: TextStyle(color: orangePrimary, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
