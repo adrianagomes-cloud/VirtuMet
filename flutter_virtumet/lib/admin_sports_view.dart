@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'precio_utils.dart';
 import 'image_search_dialog.dart';
+import 'cancha_selector.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -429,11 +430,10 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _buildFormField(
-                        label: 'Lugar / Instalación',
+                      CanchaSelector(
                         controller: lugarCtrl,
-                        hint: 'EJ. Cancha Techada 1',
-                        icon: Icons.location_on,
+                        decorationBuilder: (icon, {hint}) =>
+                            _inputDecoration(icon, hint: hint),
                       ),
                       const SizedBox(height: 12),
                       const Align(
