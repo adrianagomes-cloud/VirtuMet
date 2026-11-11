@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'login_page.dart';
 import 'student_dashboard_page.dart';
 import 'teacher_dashboard_page.dart';
@@ -28,13 +29,15 @@ class _RegistrationPageState extends State<RegistrationPage> {
   final TextEditingController _carreraController = TextEditingController();
   final TextEditingController _fechaNacimientoController =
       TextEditingController();
+  final TextEditingController _telefonoController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   // Controladores - Entrenador
   final TextEditingController _nombreCoachController = TextEditingController();
   final TextEditingController _disciplinaController = TextEditingController();
-  final TextEditingController _certificacionController = TextEditingController();
+  final TextEditingController _certificacionController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -45,6 +48,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
     _carnetController.dispose();
     _carreraController.dispose();
     _fechaNacimientoController.dispose();
+    _telefonoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _nombreCoachController.dispose();
@@ -103,10 +107,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
     try {
       final UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       final String uid = userCredential.user!.uid;
 
@@ -115,6 +116,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
         'rol': _selectedRole,
         'correo': email,
         'email': email,
+        'telefono': _telefonoController.text.trim(),
         'fechaCreacion': FieldValue.serverTimestamp(),
       };
 
@@ -146,7 +148,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
         await userCredential.user?.updateDisplayName(nombreCoach);
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(userData);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(userData);
 
       if (!mounted) return;
 
@@ -182,10 +187,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(mensaje),
-          backgroundColor: Colors.redAccent,
-        ),
+        SnackBar(content: Text(mensaje), backgroundColor: Colors.redAccent),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -214,7 +216,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                     flex: 1,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 60, vertical: 50),
+                        horizontal: 60,
+                        vertical: 50,
+                      ),
                       decoration: const BoxDecoration(
                         image: DecorationImage(
                           image: NetworkImage(
@@ -233,7 +237,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                           const SizedBox(height: 48),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFF5500),
                               borderRadius: BorderRadius.circular(30),
@@ -286,13 +292,14 @@ class _RegistrationPageState extends State<RegistrationPage> {
                           ),
                           const SizedBox(height: 36),
                           _buildFeatureItem(
-                              'ACCESO A INSTALACIONES DE PRIMER NIVEL'),
+                            'ACCESO A INSTALACIONES DE PRIMER NIVEL',
+                          ),
                           const SizedBox(height: 14),
                           _buildFeatureItem(
-                              'INSCRIPCIÓN SIMPLIFICADA A DISCIPLINAS'),
+                            'INSCRIPCIÓN SIMPLIFICADA A DISCIPLINAS',
+                          ),
                           const SizedBox(height: 14),
-                          _buildFeatureItem(
-                              'GESTIÓN DE FICHA MÉDICA DIGITAL'),
+                          _buildFeatureItem('GESTIÓN DE FICHA MÉDICA DIGITAL'),
                           const Spacer(),
                         ],
                       ),
@@ -330,7 +337,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     Expanded(
                                       child: ChoiceChip(
                                         label: const Center(
-                                            child: Text('ESTUDIANTE')),
+                                          child: Text('ESTUDIANTE'),
+                                        ),
                                         selected: _selectedRole == 'Estudiante',
                                         selectedColor: const Color(0xFFFF5500),
                                         labelStyle: TextStyle(
@@ -341,8 +349,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         ),
                                         onSelected: (selected) {
                                           if (selected) {
-                                            setState(() =>
-                                                _selectedRole = 'Estudiante');
+                                            setState(
+                                              () =>
+                                                  _selectedRole = 'Estudiante',
+                                            );
                                           }
                                         },
                                       ),
@@ -351,7 +361,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     Expanded(
                                       child: ChoiceChip(
                                         label: const Center(
-                                            child: Text('ENTRENADOR')),
+                                          child: Text('ENTRENADOR'),
+                                        ),
                                         selected: _selectedRole == 'Entrenador',
                                         selectedColor: const Color(0xFFFF5500),
                                         labelStyle: TextStyle(
@@ -362,8 +373,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         ),
                                         onSelected: (selected) {
                                           if (selected) {
-                                            setState(() =>
-                                                _selectedRole = 'Entrenador');
+                                            setState(
+                                              () =>
+                                                  _selectedRole = 'Entrenador',
+                                            );
                                           }
                                         },
                                       ),
@@ -389,7 +402,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       ? 'Completa tus datos para crear tu perfil de atleta universitario.'
                                       : 'Completa tus datos para crear tu perfil de entrenador institucional.',
                                   style: const TextStyle(
-                                      color: Colors.grey, fontSize: 13),
+                                    color: Colors.grey,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 const SizedBox(height: 24),
 
@@ -402,7 +417,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           hint: 'Juan',
                                           controller: _nombreController,
                                           icon: Icons.person_outline,
-                                          validator: (v) => v == null || v.trim().isEmpty
+                                          validator: (v) =>
+                                              v == null || v.trim().isEmpty
                                               ? 'Ingresa tu nombre'
                                               : null,
                                         ),
@@ -414,7 +430,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           hint: 'Pérez',
                                           controller: _apellidoController,
                                           icon: Icons.person_outline,
-                                          validator: (v) => v == null || v.trim().isEmpty
+                                          validator: (v) =>
+                                              v == null || v.trim().isEmpty
                                               ? 'Ingresa tu apellido'
                                               : null,
                                         ),
@@ -432,9 +449,13 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           icon: Icons.calendar_today_outlined,
                                           keyboardType: TextInputType.number,
                                           validator: (v) {
-                                            if (v == null || v.trim().isEmpty) return 'Requerido';
-                                            final num? n = num.tryParse(v.trim());
-                                            if (n == null || n < 12 || n > 90) return 'Edad no válida';
+                                            if (v == null || v.trim().isEmpty)
+                                              return 'Requerido';
+                                            final num? n = num.tryParse(
+                                              v.trim(),
+                                            );
+                                            if (n == null || n < 12 || n > 90)
+                                              return 'Edad no válida';
                                             return null;
                                           },
                                         ),
@@ -446,11 +467,18 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                           hint: '72.5',
                                           controller: _pesoController,
                                           icon: Icons.monitor_weight_outlined,
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                              ),
                                           validator: (v) {
-                                            if (v == null || v.trim().isEmpty) return 'Requerido';
-                                            final num? n = num.tryParse(v.trim());
-                                            if (n == null || n <= 20) return 'Peso no válido';
+                                            if (v == null || v.trim().isEmpty)
+                                              return 'Requerido';
+                                            final num? n = num.tryParse(
+                                              v.trim(),
+                                            );
+                                            if (n == null || n <= 20)
+                                              return 'Peso no válido';
                                             return null;
                                           },
                                         ),
@@ -463,7 +491,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: '2024111001',
                                     controller: _carnetController,
                                     icon: Icons.badge_outlined,
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Ingresa tu carnet institucional'
                                         : null,
                                   ),
@@ -473,7 +502,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Ingeniería de Sistemas',
                                     controller: _carreraController,
                                     icon: Icons.school_outlined,
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Ingresa tu carrera'
                                         : null,
                                   ),
@@ -484,8 +514,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     controller: _fechaNacimientoController,
                                     icon: Icons.event_outlined,
                                     readOnly: true,
-                                    onTap: () => _selectFechaNacimiento(context),
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    onTap: () =>
+                                        _selectFechaNacimiento(context),
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Selecciona tu fecha de nacimiento'
                                         : null,
                                   ),
@@ -495,7 +527,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Carlos Rivas',
                                     controller: _nombreCoachController,
                                     icon: Icons.person_outline,
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Ingresa tu nombre y apellido'
                                         : null,
                                   ),
@@ -505,7 +538,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Fútbol Sala - 8 años',
                                     controller: _disciplinaController,
                                     icon: Icons.sports_soccer_outlined,
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Ingresa tu disciplina y años de experiencia'
                                         : null,
                                   ),
@@ -515,12 +549,25 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                     hint: 'Licencia CONMEBOL B',
                                     controller: _certificacionController,
                                     icon: Icons.verified_outlined,
-                                    validator: (v) => v == null || v.trim().isEmpty
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
                                         ? 'Ingresa tus certificaciones'
                                         : null,
                                   ),
                                 ],
 
+                                const SizedBox(height: 16),
+                                _buildTextField(
+                                  label: 'TELÉFONO *',
+                                  hint: '+58 412 000 0000',
+                                  controller: _telefonoController,
+                                  icon: Icons.phone_outlined,
+                                  keyboardType: TextInputType.phone,
+                                  validator: (v) =>
+                                      v == null || v.trim().isEmpty
+                                      ? 'Ingresa tu teléfono'
+                                      : null,
+                                ),
                                 const SizedBox(height: 16),
                                 _buildTextField(
                                   label: 'CORREO INSTITUCIONAL *',
@@ -533,8 +580,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       return 'Ingresa tu correo';
                                     }
                                     final bool isEmailValid = RegExp(
-                                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-                                        .hasMatch(v.trim());
+                                      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                                    ).hasMatch(v.trim());
                                     if (!isEmailValid) {
                                       return 'Formato de correo no válido';
                                     }
@@ -557,8 +604,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       size: 20,
                                     ),
                                     onPressed: () {
-                                      setState(() =>
-                                          _obscurePassword = !_obscurePassword);
+                                      setState(
+                                        () => _obscurePassword =
+                                            !_obscurePassword,
+                                      );
                                     },
                                   ),
                                   validator: (v) {
@@ -585,8 +634,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       ),
                                       elevation: 0,
                                     ),
-                                    onPressed:
-                                        _isLoading ? null : _handleRegister,
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _handleRegister,
                                     child: _isLoading
                                         ? const SizedBox(
                                             height: 20,
@@ -609,8 +659,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                                 ),
                                               ),
                                               SizedBox(width: 8),
-                                              Icon(Icons.arrow_forward,
-                                                  size: 18),
+                                              Icon(
+                                                Icons.arrow_forward,
+                                                size: 18,
+                                              ),
                                             ],
                                           ),
                                   ),
@@ -624,7 +676,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       const Text(
                                         '¿Ya tienes cuenta? ',
                                         style: TextStyle(
-                                            fontSize: 12, color: Colors.grey),
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                       GestureDetector(
                                         onTap: () {
@@ -676,7 +730,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                   borderRadius: BorderRadius.circular(30),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(30),
@@ -748,8 +804,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             prefixIcon: Icon(icon, color: Colors.grey, size: 20),
             suffixIcon: suffixIcon,
           ),
@@ -768,11 +826,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
             color: const Color(0xFFFF5500).withValues(alpha: 0.2),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.check,
-            color: Color(0xFFFF5500),
-            size: 14,
-          ),
+          child: const Icon(Icons.check, color: Color(0xFFFF5500), size: 14),
         ),
         const SizedBox(width: 12),
         Text(
