@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'precio_utils.dart';
+import 'image_search_dialog.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -554,6 +555,27 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                         controller: imageCtrl,
                         hint: 'https://images.unsplash.com/...',
                         icon: Icons.image_outlined,
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: orangePrimary,
+                            side: const BorderSide(color: orangePrimary),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.image_search, size: 18),
+                          label: const Text('Buscar imagen'),
+                          onPressed: () async {
+                            final url = await showImageSearchDialog(ctx,
+                                inicial: nombreCtrl.text.trim());
+                            if (url != null) {
+                              setDialogState(() => imageCtrl.text = url);
+                            }
+                          },
+                        ),
                       ),
                     ],
                   ),
