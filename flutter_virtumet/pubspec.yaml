@@ -17,6 +17,7 @@ dependencies:
   cloud_firestore: ^6.10.0
   firebase_storage: ^13.6.0 # Opcional si subes a Firebase Storage
   image_picker: ^1.1.2     # Para seleccionar archivos desde la computadora / dispositivo
+  http: ^1.2.2             # Buscador de imágenes (Wikimedia Commons) en el formulario de disciplinas
 
 dev_dependencies:
   flutter_test:
