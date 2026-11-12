@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'precio_utils.dart';
 import 'paypal_checkout.dart';
 import 'ficha_estudiante.dart';
+import 'discipline_reviews_dialog.dart';
 
 class StudentSportsView extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -30,37 +31,16 @@ class _StudentSportsViewState extends State<StudentSportsView> {
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color orangePrimary = Color(0xFFFF5500);
 
-  IconData _getSportIcon(String nombre) {
-    final lower = nombre.toLowerCase();
-    if (lower.contains('fútbol') || lower.contains('futbol')) {
-      return Icons.sports_soccer;
-    } else if (lower.contains('baloncesto') || lower.contains('basket')) {
-      return Icons.sports_basketball;
-    } else if (lower.contains('voleibol') || lower.contains('voley')) {
-      return Icons.sports_volleyball;
-    } else if (lower.contains('natación') || lower.contains('natacion')) {
-      return Icons.pool;
-    } else if (lower.contains('tenis')) {
-      return Icons.sports_tennis;
-    }
-    return Icons.fitness_center;
-  }
-
   @override
   Widget build(BuildContext context) {
     final String userEmail = _currentUser?.email ?? '';
 
     return StreamBuilder<QuerySnapshot>(
-      // Resolución en tiempo real del usuario
       stream: FirebaseFirestore.instance.collection('users').snapshots(),
       builder: (context, userSnapshot) {
         String nombreEstudiante = 'Estudiante UNIMET';
-        // Solo los estudiantes pueden inscribirse y pagar: el admin
-        // (correo fijo) y los entrenadores quedan bloqueados.
         bool puedeInscribirse =
             userEmail.toLowerCase() != 'admin@correo.unimet.ve';
-        // Validación de estado: un estudiante marcado como Inactivo por el
-        // administrador no puede inscribirse (ni pagar) en ninguna disciplina.
         bool cuentaInactiva = false;
 
         if (userSnapshot.hasData && userSnapshot.data!.docs.isNotEmpty) {
@@ -90,7 +70,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
         }
 
         return StreamBuilder<QuerySnapshot>(
-          // Consulta en vivo de las inscripciones del estudiante
           stream: FirebaseFirestore.instance
               .collection('inscripciones')
               .snapshots(),
@@ -185,8 +164,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                     },
                   ),
                   const SizedBox(height: 28),
-
-                  // Búsqueda y Filtro de Categorías
                   Row(
                     children: [
                       Expanded(
@@ -254,8 +231,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                     ],
                   ),
                   const SizedBox(height: 24),
-
-                  // StreamBuilder en vivo del catálogo 'deportes'
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('deportes')
@@ -337,7 +312,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                           maxCrossAxisExtent: 400,
                           crossAxisSpacing: 20,
                           mainAxisSpacing: 20,
-                          childAspectRatio: 0.8,
+                          childAspectRatio: 0.75,
                         ),
                         itemCount: filteredSports.length,
                         itemBuilder: (context, index) {
@@ -391,7 +366,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
         .any((i) => (i.data() as Map<String, dynamic>)['deporteId'] == id);
 
     return StreamBuilder<QuerySnapshot>(
-      // Recálculo dinámico de cupos ocupados
       stream: FirebaseFirestore.instance
           .collection('inscripciones')
           .where('deporteId', isEqualTo: id)
@@ -527,43 +501,74 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               ),
                             ),
                           ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: yaInscrito
-                                  ? Colors.grey
-                                  : (cuposDisponibles > 0
-                                      ? orangePrimary
-                                      : Colors.grey),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: (!puedeInscribirse || cuentaInactiva || yaInscrito || cuposDisponibles <= 0)
-                                ? null
-                                : () => _pagarEInscribir(
-                                      context: context,
-                                      deporteId: id,
-                                      nombre: nombre,
-                                      horario: horario,
-                                      lugar: lugar,
-                                      nombreEstudiante: nombreEstudiante,
-                                      precio: precioDeDisciplina(data),
-                                    ),
-                            child: Text(
-                              !puedeInscribirse
-                                  ? 'Solo estudiantes'
-                                  : cuentaInactiva
-                                  ? 'Cuenta inactiva'
-                                  : yaInscrito
-                                  ? 'Inscrito'
-                                  : (cuposDisponibles > 0
-                                      ? 'Inscribirme'
-                                      : 'Agotado'),
-                              style: const TextStyle(
-                                  fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                          Row(
+                            children: [
+                              // Botón de Reseñas integrado
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: blueDark,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: () {
+                                  showDisciplineReviewsDialog(
+                                    context,
+                                    deporteId: id,
+                                    deporteNombre: nombre,
+                                  );
+                                },
+                                icon: const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                                label: const Text(
+                                  'Reseñas',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              // Botón de Inscribirse
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: yaInscrito
+                                      ? Colors.grey
+                                      : (cuposDisponibles > 0
+                                          ? orangePrimary
+                                          : Colors.grey),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: (!puedeInscribirse || cuentaInactiva || yaInscrito || cuposDisponibles <= 0)
+                                    ? null
+                                    : () => _pagarEInscribir(
+                                        context: context,
+                                        deporteId: id,
+                                        nombre: nombre,
+                                        horario: horario,
+                                        lugar: lugar,
+                                        nombreEstudiante: nombreEstudiante,
+                                        precio: precioDeDisciplina(data),
+                                      ),
+                                child: Text(
+                                  !puedeInscribirse
+                                      ? 'Solo estudiantes'
+                                      : cuentaInactiva
+                                      ? 'Inactiva'
+                                      : yaInscrito
+                                      ? 'Inscrito'
+                                      : (cuposDisponibles > 0
+                                          ? 'Inscribirme'
+                                          : 'Agotado'),
+                                  style: const TextStyle(
+                                      fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -578,9 +583,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     );
   }
 
-  /// Cobra la inscripción con PayPal (sandbox) y, si el pago se aprueba,
-  /// registra la inscripción y descuenta el cupo en un solo paso (batch).
-  /// Si el precio es 0, inscribe directamente sin pasar por PayPal.
   Future<void> _pagarEInscribir({
     required BuildContext context,
     required String deporteId,
@@ -593,8 +595,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
     final messenger = ScaffoldMessenger.of(context);
     PaypalPago? pago;
 
-    // Ficha deportiva personal: se pide solo si el estudiante aún no la tiene
-    // completa. Si cancela el formulario, no se inscribe ni se cobra.
     final fichaOk = await asegurarFichaCompleta(
       context,
       uid: _currentUser?.uid ?? '',
@@ -635,7 +635,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       try {
         pago = await pagarConPaypal(
           monto: precio,
-          descripcion: 'Inscripción $nombre - VirtuMet',
+          descripcion: 'Inscripción $nombre',
         );
       } on PaypalCancelado {
         messenger.showSnackBar(const SnackBar(
@@ -651,7 +651,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       }
     }
 
-    // Pago aprobado (o disciplina gratuita): registrar la inscripción.
     try {
       final db = FirebaseFirestore.instance;
       final inscripcionRef = db.collection('inscripciones').doc();
@@ -682,8 +681,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       });
       await batch.commit();
     } catch (e) {
-      // El pago ya se hizo pero no se pudo guardar: mostrar el número de orden
-      // para que el admin pueda verificarlo en PayPal.
       messenger.showSnackBar(SnackBar(
         content: Text(
             'El pago se realizó pero no se pudo registrar la inscripción '
@@ -703,7 +700,6 @@ class _StudentSportsViewState extends State<StudentSportsView> {
       return;
     }
 
-    // Comprobante de pago
     final PaypalPago comprobante = pago!;
     await showDialog<void>(
       context: context,
@@ -776,7 +772,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF1F2937)),
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

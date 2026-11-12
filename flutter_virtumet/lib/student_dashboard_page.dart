@@ -18,7 +18,7 @@ class StudentDashboardPage extends StatefulWidget {
 class _StudentDashboardPageState extends State<StudentDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 4: Mis Reseñas, 5: Avisos
+  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 5: Avisos
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -155,8 +155,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         child: _buildMainContent(
                             misInscripciones, nombreEstudiante),
                       )
-                    else if (_selectedIndex == 4)
-                      _buildStudentReviewsView(authUid)
                     else if (_selectedIndex == 5)
                       const StudentAnnouncementsView()
                     else
@@ -247,7 +245,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           _navLink('Catálogo Deportivo', targetIndex: 1),
           _navLink('Mis Actividades', targetIndex: 2),
           _navLink('Comunidad', targetIndex: 3),
-          _navLink('Mis Reseñas', targetIndex: 4),
           _navLink('Avisos', targetIndex: 5),
           const Spacer(),
           Row(
@@ -338,316 +335,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // VISTA "MIS RESEÑAS" DEL ESTUDIANTE CON ESTILO IDÉNTICO AL ADMIN
-  Widget _buildStudentReviewsView(String authUid) {
-    return Container(
-      width: double.infinity,
-      color: bgLight,
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Mis Reseñas y Calificaciones',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: blueDark,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.green.withValues(alpha: 0.3)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.green, size: 8),
-                            SizedBox(width: 6),
-                            Text(
-                              'EN VIVO',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Sincronización en tiempo real de las opiniones publicadas para tus deportes.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ],
-              ),
-              SizedBox(
-                width: 280,
-                height: 40,
-                child: TextField(
-                  onChanged: (val) {
-                    setState(() {
-                      _searchQuery = val.toLowerCase().trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Buscar por deporte o profesor...',
-                    hintStyle:
-                        const TextStyle(fontSize: 12, color: Colors.grey),
-                    prefixIcon:
-                        const Icon(Icons.search, size: 18, color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('reviews')
-                .where('estudianteUid', isEqualTo: authUid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: CircularProgressIndicator(color: orangePrimary),
-                  ),
-                );
-              }
-
-              final docs = snapshot.data?.docs ?? [];
-
-              if (docs.isEmpty) {
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(40),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
-                  ),
-                  child: const Column(
-                    children: [
-                      Icon(Icons.rate_review_outlined,
-                          size: 48, color: Colors.grey),
-                      SizedBox(height: 12),
-                      Text(
-                        'Aún no has publicado opiniones para tus deportes.',
-                        style: TextStyle(
-                          color: blueDark,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Usa el botón "Calificar" en tus deportes inscritos para enviar reseñas.',
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              final filteredDocs = docs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final disciplina =
-                    (data['deporteNombre'] ?? '').toString().toLowerCase();
-                final profesor =
-                    (data['profesorNombre'] ?? '').toString().toLowerCase();
-
-                return disciplina.contains(_searchQuery) ||
-                    profesor.contains(_searchQuery);
-              }).toList();
-
-              if (filteredDocs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: Text(
-                      'No se encontraron reseñas con ese criterio de búsqueda.',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                  ),
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Mostrando ${filteredDocs.length} ${filteredDocs.length == 1 ? 'reseña' : 'reseñas'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredDocs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      final data =
-                          filteredDocs[index].data() as Map<String, dynamic>;
-
-                      final String disciplina =
-                          (data['deporteNombre'] ?? 'Disciplina').toString();
-                      final String profesorNombre =
-                          (data['profesorNombre'] ?? 'Profesor').toString();
-                      final String ratingProfesor =
-                          (data['profesorRating'] ?? '5').toString();
-                      final String comentarioProfesor =
-                          (data['profesorComment'] ?? '').toString();
-                      final String ratingDeporte =
-                          (data['sportRating'] ?? '5').toString();
-                      final String comentarioDeporte =
-                          (data['sportComment'] ?? '').toString();
-
-                      return Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7F4),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFFFE0D6),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.02),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Disciplina: $disciplina',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: blueDark,
-                              ),
-                            ),
-                            const Divider(
-                                height: 20, color: Color(0xFFFFE0D6)),
-                            Row(
-                              children: [
-                                Text(
-                                  '• Profesor ($profesorNombre): ',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: blueDark,
-                                  ),
-                                ),
-                                const Icon(Icons.star,
-                                    color: Colors.amber, size: 16),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$ratingProfesor/5',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: blueDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (comentarioProfesor.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    left: 12, top: 4, bottom: 8),
-                                child: Text(
-                                  '"$comentarioProfesor"',
-                                  style: const TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 13,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                const Text(
-                                  '• Deporte / Instalación: ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: blueDark,
-                                  ),
-                                ),
-                                const Icon(Icons.star,
-                                    color: Colors.amber, size: 16),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$ratingDeporte/5',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: blueDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (comentarioDeporte.isNotEmpty)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 12, top: 4),
-                                child: Text(
-                                  '"$comentarioDeporte"',
-                                  style: const TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 13,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
       ),
     );
   }
@@ -781,14 +468,95 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       (sportData['lugar'] ?? data['lugar'] ?? '')
                           .toString()
                           .trim();
-                  final String imageUrl = (sportData['imageUrl'] ?? data['imageUrl'] ?? '').toString().trim();
+                  final String entrenador = (sportData['entrenador'] ?? '').toString().trim();
+                  final String entrenadorUid = (sportData['entrenadorUid'] ?? '').toString().trim();
+                  final String imageUrl = (sportData['imageUrl'] ?? '').toString().trim();
 
-                  return _activityCard(
-                      deporteId,
-                      deporteNombre.toString(),
-                      horario.isEmpty ? 'Horario no disponible' : horario,
-                      lugar.isEmpty ? 'Lugar no disponible' : lugar,
-                      imageUrl);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: cardDecoration,
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: imageUrl.isNotEmpty
+                              ? Image.network(
+                                  imageUrl,
+                                  width: 70,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _fallbackThumb(),
+                                )
+                              : _fallbackThumb(),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(deporteNombre, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: blueDark)),
+                              const SizedBox(height: 4),
+                              Text('$horario • $lugar', style: const TextStyle(fontSize: 12, color: textGrey)),
+                              if (entrenador.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text('Profesor: $entrenador', style: const TextStyle(fontSize: 12, color: textGrey)),
+                              ],
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.amber.shade800,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text('Calificar $deporteNombre'),
+                                content: SizedBox(
+                                  width: 400,
+                                  child: StudentReviewFormView(
+                                    deporteId: deporteId,
+                                    deporteNombre: deporteNombre,
+                                    profesorUid: entrenadorUid,
+                                    profesorNombre: entrenador.isNotEmpty ? entrenador : 'Profesor',
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
+                          label: const Text('Calificar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                              SizedBox(width: 6),
+                              Text(
+                                'Inscrito',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 },
               );
             }).toList(),
@@ -797,250 +565,80 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
-  Widget _buildEmptyStateContainer() {
+  Widget _fallbackThumb() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      decoration: BoxDecoration(color: const Color(0xFFF0F4F8), borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.sports, size: 28, color: blueDark.withValues(alpha: 0.5)),
-          const SizedBox(width: 14),
-          const Text('No tienes deportes ni disciplinas inscritas en el sistema', style: TextStyle(color: blueDark, fontSize: 15, fontWeight: FontWeight.bold)),
-        ],
+      width: 70,
+      height: 50,
+      color: blueDark,
+      child: const Center(
+        child: Icon(Icons.sports_soccer, color: Colors.white, size: 24),
       ),
     );
   }
 
-  Widget _activityCard(String deporteId, String deporteNombre, String horario,
-      String lugar, String imageUrl) {
+  Widget _buildEmptyStateContainer() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(40),
       decoration: cardDecoration,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 560;
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(deporteNombre,
-                  style: const TextStyle(
-                      color: blueDark,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('$horario · $lugar',
-                  style: const TextStyle(color: textGrey, fontSize: 13)),
-            ],
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton.icon(
-                onPressed: () async {
-                  final sportDoc = await FirebaseFirestore.instance
-                      .collection('deportes')
-                      .doc(deporteId)
-                      .get();
-                  final sportData =
-                      sportDoc.data() as Map<String, dynamic>?;
-                  final profesorUid =
-                      (sportData?['entrenadorUid'] ?? '').toString();
-                  final profesorNombre =
-                      (sportData?['entrenador'] ?? '').toString().trim();
-
-                  if (!mounted) return;
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) => Dialog(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      child: Container(
-                        width: 450,
-                        padding: const EdgeInsets.all(16),
-                        child: StudentReviewFormView(
-                          deporteId: deporteId,
-                          deporteNombre: deporteNombre,
-                          profesorUid: profesorUid,
-                          profesorNombre: profesorNombre.isEmpty
-                              ? 'Entrenador no asignado'
-                              : profesorNombre,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.star_rate,
-                    color: Colors.amber, size: 18),
-                label: const Text('Calificar',
-                    style: TextStyle(color: blueDark, fontSize: 11)),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: Colors.green.withValues(alpha: 0.4)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.green, size: 16),
-                    SizedBox(width: 6),
-                    Text('Inscrito',
-                        style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12)),
-                  ],
-                ),
-              ),
-            ],
-          );
-
-          return Flex(
-            direction: compact ? Axis.vertical : Axis.horizontal,
-            crossAxisAlignment: compact
-                ? CrossAxisAlignment.start
-                : CrossAxisAlignment.center,
-            children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: imageUrl.isNotEmpty
-                ? Image.network(imageUrl, width: 68, height: 68, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 68, height: 68, color: bgLight, child: Icon(_getSportIcon(deporteNombre), color: blueDark, size: 30)))
-                : Container(width: 68, height: 68, color: bgLight, child: Icon(_getSportIcon(deporteNombre), color: blueDark, size: 30)),
-          ),
-          SizedBox(
-              width: compact ? 0 : 20,
-              height: compact ? 16 : 0),
-          if (compact)
-            details
-          else
-            Expanded(child: details),
-          SizedBox(
-              width: compact ? 0 : 16,
-              height: compact ? 12 : 0),
-          actions,
+      child: Column(
+        children: const [
+          Icon(Icons.sports_basketball_outlined, size: 48, color: textGrey),
+          SizedBox(height: 12),
+          Text('No tienes deportes inscritos actualmente.', style: TextStyle(color: blueDark, fontWeight: FontWeight.bold, fontSize: 16)),
+          SizedBox(height: 4),
+          Text('Explora el Catálogo Deportivo para inscribirte en una disciplina.', style: TextStyle(color: textGrey, fontSize: 13)),
         ],
-          );
-        },
       ),
     );
   }
 
   Widget _buildRightSidebar(List<DocumentSnapshot> misInscripciones) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildCriticalAlertsCard(misInscripciones),
-        const SizedBox(height: 24),
-        _buildUpcomingEventsCard(),
-      ],
-    );
-  }
-
-  /// Avisos del estudiante calculados en tiempo real: solo muestra las
-  /// disciplinas en las que está inscrito (no canceladas) que estén en
-  /// mantenimiento o inactivas.
-  Widget _buildCriticalAlertsCard(List<DocumentSnapshot> misInscripciones) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: blueDark, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
-              SizedBox(width: 8),
-              Text('AVISOS CRÍTICOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+        // Tarjeta de Avisos con fondo azul oscuro
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: blueDark,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
             ],
           ),
-          const SizedBox(height: 16),
-          // Comunicados del administrador: solo los activos y con prioridad
-          // Importante o Urgente (los Normales se ven en la pestaña Avisos).
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('avisos')
-                .where('estado', isEqualTo: 'Activo')
-                .snapshots(),
-            builder: (context, avisosSnap) {
-              return StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
-                builder: (context, snap) {
-                  if (!snap.hasData) return const SizedBox.shrink();
-                  final List<String> avisos = [];
-
-                  // 1) Avisos del administrador (Urgente primero)
-                  final comunicados = (avisosSnap.data?.docs ?? [])
-                      .map((d) => d.data() as Map<String, dynamic>)
-                      .where((m) =>
-                          (m['prioridad'] ?? 'Normal') != 'Normal' &&
-                          avisoDirigidoA(m, 'Estudiantes'))
-                      .toList()
-                    ..sort((a, b) {
-                      int peso(Map<String, dynamic> m) =>
-                          (m['prioridad'] ?? '') == 'Urgente' ? 0 : 1;
-                      return peso(a).compareTo(peso(b));
-                    });
-                  for (final m in comunicados) {
-                    avisos.add('${m['titulo'] ?? 'Aviso'}: ${m['mensaje'] ?? ''}');
-                  }
-
-                  // 2) Avisos automáticos: inscripciones propias sin pago registrado
-                  for (final i in misInscripciones) {
-                    final m = i.data() as Map<String, dynamic>;
-                    if (m['pagado'] != true) {
-                      avisos.add('Pago pendiente en ${m['nombreDeporte'] ?? 'tu disciplina'}');
-                    }
-                  }
-
-                  // 3) Estado de las disciplinas en las que está inscrito
-                  final ids = misInscripciones
-                      .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
-                      .toSet();
-                  for (final d in snap.data!.docs) {
-                    if (!ids.contains(d.id)) continue;
-                    final m = d.data() as Map<String, dynamic>;
-                    final String estado = (m['estado'] ?? 'Activo').toString();
-                    if (estado != 'Activo') {
-                      avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
-                    }
-                  }
-                  if (avisos.isEmpty) return _alertItem('Sin avisos críticos por ahora.');
-                  return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
-                },
-              );
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
+                  SizedBox(width: 8),
+                  Text('AVISOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white, letterSpacing: 0.5)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('• Alerta de estudiantes: Cancelaron las clases de basket', style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4)),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => setState(() => _selectedIndex = 5),
+                child: const Text(
+                  'VER TODOS LOS AVISOS >',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: orangePrimary),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          InkWell(
-            onTap: () => setState(() => _selectedIndex = 5),
-            child: const Text(
-              'VER TODOS LOS AVISOS >',
-              style: TextStyle(color: orangePrimary, fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _alertItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(width: 6, height: 6, decoration: const BoxDecoration(color: orangePrimary, shape: BoxShape.circle)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12))),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+        // Tu widget _buildUpcomingEventsCard exacto tal cual lo enviaste
+        _buildUpcomingEventsCard(),
+      ],
     );
   }
 
@@ -1091,10 +689,15 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildFooter() {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Text('© 2026 Samán Deportivo · UNIMET', style: TextStyle(color: textGrey, fontSize: 12)),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      color: Colors.white,
+      child: const Center(
+        child: Text(
+          '© 2026 Samán Deportivo • UNIMET',
+          style: TextStyle(fontSize: 12, color: textGrey),
+        ),
       ),
     );
   }
