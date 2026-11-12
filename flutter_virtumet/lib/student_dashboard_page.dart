@@ -597,48 +597,109 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Tarjeta de Avisos con fondo azul oscuro
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: blueDark,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
-                  SizedBox(width: 8),
-                  Text('AVISOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white, letterSpacing: 0.5)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text('• Alerta de estudiantes: Cancelaron las clases de basket', style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4)),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => setState(() => _selectedIndex = 5),
-                child: const Text(
-                  'VER TODOS LOS AVISOS >',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: orangePrimary),
-                ),
-              ),
-            ],
-          ),
-        ),
+        _buildCriticalAlertsCard(misInscripciones),
         const SizedBox(height: 24),
         // Tu widget _buildUpcomingEventsCard exacto tal cual lo enviaste
         _buildUpcomingEventsCard(),
       ],
+    );
+  }
+
+  Widget _buildCriticalAlertsCard(List<DocumentSnapshot> misInscripciones) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(color: blueDark, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
+              SizedBox(width: 8),
+              Text('AVISOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Comunicados del administrador: solo los activos y con prioridad
+          // Importante o Urgente (los Normales se ven en la pestaña Avisos).
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('avisos')
+                .where('estado', isEqualTo: 'Activo')
+                .snapshots(),
+            builder: (context, avisosSnap) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+                builder: (context, snap) {
+                  if (!snap.hasData) return const SizedBox.shrink();
+                  final List<String> avisos = [];
+
+                  // 1) Avisos del administrador (Urgente primero)
+                  final comunicados = (avisosSnap.data?.docs ?? [])
+                      .map((d) => d.data() as Map<String, dynamic>)
+                      .where((m) =>
+                          (m['prioridad'] ?? 'Normal') != 'Normal' &&
+                          avisoDirigidoA(m, 'Estudiantes'))
+                      .toList()
+                    ..sort((a, b) {
+                      int peso(Map<String, dynamic> m) =>
+                          (m['prioridad'] ?? '') == 'Urgente' ? 0 : 1;
+                      return peso(a).compareTo(peso(b));
+                    });
+                  for (final m in comunicados) {
+                    avisos.add('${m['titulo'] ?? 'Aviso'}: ${m['mensaje'] ?? ''}');
+                  }
+
+                  // 2) Avisos automáticos: inscripciones propias sin pago registrado
+                  for (final i in misInscripciones) {
+                    final m = i.data() as Map<String, dynamic>;
+                    if (m['pagado'] != true) {
+                      avisos.add('Pago pendiente en ${m['nombreDeporte'] ?? 'tu disciplina'}');
+                    }
+                  }
+
+                  // 3) Estado de las disciplinas en las que está inscrito
+                  final ids = misInscripciones
+                      .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
+                      .toSet();
+                  for (final d in snap.data!.docs) {
+                    if (!ids.contains(d.id)) continue;
+                    final m = d.data() as Map<String, dynamic>;
+                    final String estado = (m['estado'] ?? 'Activo').toString();
+                    if (estado != 'Activo') {
+                      avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
+                    }
+                  }
+                  if (avisos.isEmpty) return _alertItem('Sin avisos por ahora.');
+                  return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 5),
+            child: const Text(
+              'VER TODOS LOS AVISOS >',
+              style: TextStyle(color: orangePrimary, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _alertItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(width: 6, height: 6, decoration: const BoxDecoration(color: orangePrimary, shape: BoxShape.circle)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12))),
+        ],
+      ),
     );
   }
 

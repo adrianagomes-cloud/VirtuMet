@@ -218,8 +218,17 @@ class _AdminFichasViewState extends State<AdminFichasView> {
 
 /// Lista de inscripciones (colección `inscripciones`, escrita por el catálogo
 /// del estudiante). Muestra estado y permite cancelar una inscripción.
-class _InscripcionesList extends StatelessWidget {
+class _InscripcionesList extends StatefulWidget {
   const _InscripcionesList();
+
+  @override
+  State<_InscripcionesList> createState() => _InscripcionesListState();
+}
+
+class _InscripcionesListState extends State<_InscripcionesList> {
+  // Filtros de la vista: texto de búsqueda y estado ('Todas' | 'Confirmada' | 'Cancelada')
+  String _busqueda = '';
+  String _filtroEstado = 'Todas';
 
   Future<void> _cancelar(BuildContext context, QueryDocumentSnapshot d) async {
     final m = d.data() as Map<String, dynamic>;
@@ -282,14 +291,8 @@ class _InscripcionesList extends StatelessWidget {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        final docs = snap.data!.docs.toList()
-          ..sort((a, b) {
-            final ta = (a.data() as Map)['fechaInscripcion'];
-            final tb = (b.data() as Map)['fechaInscripcion'];
-            if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
-            return 0;
-          });
-        if (docs.isEmpty) {
+        final todas = snap.data!.docs.toList();
+        if (todas.isEmpty) {
           return const AdminCard(
             child: Center(
               child: Padding(
@@ -299,13 +302,129 @@ class _InscripcionesList extends StatelessWidget {
             ),
           );
         }
+
+        String estadoDe(QueryDocumentSnapshot d) =>
+            ((d.data() as Map)['estado'] ?? 'Confirmada').toString();
+
+        // Aplicar filtros (estado + búsqueda por estudiante, correo o disciplina)
+        final q = _busqueda.trim().toLowerCase();
+        final docs = todas.where((d) {
+          final m = d.data() as Map<String, dynamic>;
+          if (_filtroEstado != 'Todas' && estadoDe(d) != _filtroEstado) {
+            return false;
+          }
+          if (q.isEmpty) return true;
+          final texto =
+              '${m['nombreEstudiante'] ?? ''} ${m['correoEstudiante'] ?? ''} ${m['nombreDeporte'] ?? ''}'
+                  .toLowerCase();
+          return texto.contains(q);
+        }).toList();
+
+        // Agrupar por disciplina
+        final grupos = <String, List<QueryDocumentSnapshot>>{};
+        for (final d in docs) {
+          final nombre =
+              ((d.data() as Map)['nombreDeporte'] ?? 'Sin disciplina').toString();
+          grupos.putIfAbsent(nombre, () => []).add(d);
+        }
+        final nombres = grupos.keys.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+        // Dentro de cada grupo: activas primero, luego canceladas; más recientes arriba
+        int porFecha(QueryDocumentSnapshot a, QueryDocumentSnapshot b) {
+          final ta = (a.data() as Map)['fechaInscripcion'];
+          final tb = (b.data() as Map)['fechaInscripcion'];
+          if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+          return 0;
+        }
+
+        for (final n in nombres) {
+          grupos[n]!.sort((a, b) {
+            final ca = estadoDe(a) == 'Cancelada' ? 1 : 0;
+            final cb = estadoDe(b) == 'Cancelada' ? 1 : 0;
+            if (ca != cb) return ca.compareTo(cb);
+            return porFecha(a, b);
+          });
+        }
+
+        final totalActivas = todas.where((d) => estadoDe(d) != 'Cancelada').length;
+
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final d in docs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _row(context, d),
+            // Barra de búsqueda y filtros
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 320,
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar estudiante, correo o disciplina',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() => _busqueda = v),
+                  ),
+                ),
+                for (final f in const ['Todas', 'Confirmada', 'Cancelada'])
+                  ChoiceChip(
+                    label: Text(f == 'Confirmada'
+                        ? 'Confirmadas'
+                        : f == 'Cancelada'
+                            ? 'Canceladas'
+                            : 'Todas'),
+                    selected: _filtroEstado == f,
+                    selectedColor: kOrange.withOpacity(0.2),
+                    onSelected: (_) => setState(() => _filtroEstado = f),
+                  ),
+                Text(
+                  '${todas.length} inscripciones · $totalActivas activas',
+                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (docs.isEmpty)
+              const AdminCard(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No hay inscripciones que coincidan con el filtro.'),
+                  ),
+                ),
               ),
+            for (final n in nombres) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sports_soccer, size: 18, color: kNavy),
+                    const SizedBox(width: 8),
+                    Text(
+                      n,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16, color: kNavy),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${grupos[n]!.where((d) => estadoDe(d) != 'Cancelada').length} activas'
+                      '${grupos[n]!.any((d) => estadoDe(d) == 'Cancelada') ? ' · ${grupos[n]!.where((d) => estadoDe(d) == 'Cancelada').length} canceladas' : ''}',
+                      style: const TextStyle(color: Colors.black54, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              for (final d in grupos[n]!)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _row(context, d),
+                ),
+              const SizedBox(height: 8),
+            ],
           ],
         );
       },

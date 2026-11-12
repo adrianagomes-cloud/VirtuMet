@@ -781,7 +781,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   color: orangePrimary, size: 20),
               SizedBox(width: 8),
               Text(
-                'AVISOS CRÍTICOS',
+                'AVISOS',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -864,7 +864,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             }
 
             if (avisos.isEmpty) {
-              return _alertItem('Sin avisos críticos por ahora.');
+              return _alertItem('Sin avisos por ahora.');
             }
             return Column(
               children: [for (final a in avisos.take(4)) _alertItem(a)],

@@ -160,6 +160,17 @@ class _StudentRow extends StatelessWidget {
             icon: const Icon(Icons.assignment_ind_outlined, size: 18),
             label: const Text('Ver ficha'),
           ),
+          const SizedBox(width: 8),
+          // Historial de pagos del estudiante (inscripciones pagadas)
+          OutlinedButton.icon(
+            onPressed: () => _mostrarPagos(
+              context,
+              uid: doc.id,
+              nombre: userDisplayName(m),
+            ),
+            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            label: const Text('Ver pagos'),
+          ),
           const SizedBox(width: 12),
           Text(activo ? 'Activo' : 'Inactivo'),
           Switch(
@@ -249,4 +260,144 @@ class _TrainerRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Muestra el historial de pagos de un estudiante, leyendo sus inscripciones
+/// (colección `inscripciones`, campo `estudianteId`).
+/// - "Total pagado" suma solo las inscripciones pagadas que siguen vigentes.
+/// - Las canceladas con pago se muestran aparte como "pago sin reembolsar",
+///   porque el reembolso por PayPal aún no es automático.
+Future<void> _mostrarPagos(
+  BuildContext context, {
+  required String uid,
+  required String nombre,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Pagos de $nombre'),
+      content: SizedBox(
+        width: 560,
+        child: FutureBuilder<QuerySnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('inscripciones')
+              .where('estudianteId', isEqualTo: uid)
+              .get(),
+          builder: (context, snap) {
+            if (snap.hasError) return Text('Error: ${snap.error}');
+            if (!snap.hasData) {
+              return const SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final docs = snap.data!.docs
+                .map((d) => d.data() as Map<String, dynamic>)
+                .toList()
+              ..sort((a, b) {
+                final ta = a['fechaInscripcion'];
+                final tb = b['fechaInscripcion'];
+                if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+                return 0;
+              });
+            if (docs.isEmpty) {
+              return const Text('Este estudiante aún no tiene inscripciones.');
+            }
+
+            double monto(Map<String, dynamic> m) {
+              final v = m['montoPagado'] ?? m['precio'] ?? 0;
+              return v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+            }
+
+            String fecha(dynamic t) {
+              if (t is! Timestamp) return '';
+              final d = t.toDate();
+              return '${d.day.toString().padLeft(2, '0')}/'
+                  '${d.month.toString().padLeft(2, '0')}/${d.year}';
+            }
+
+            double totalVigente = 0;
+            double totalSinReembolso = 0;
+            for (final m in docs) {
+              if (m['pagado'] != true) continue;
+              if ((m['estado'] ?? 'Confirmada') == 'Cancelada') {
+                totalSinReembolso += monto(m);
+              } else {
+                totalVigente += monto(m);
+              }
+            }
+
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total pagado (inscripciones vigentes): '
+                    '\$${totalVigente.toStringAsFixed(2)} USD',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  if (totalSinReembolso > 0)
+                    Text(
+                      'Pagos de inscripciones canceladas sin reembolsar: '
+                      '\$${totalSinReembolso.toStringAsFixed(2)} USD',
+                      style: const TextStyle(
+                          color: Colors.redAccent, fontSize: 13),
+                    ),
+                  const Divider(height: 24),
+                  for (final m in docs)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _filaPago(m, monto(m), fecha(m['fechaInscripcion'])),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _filaPago(Map<String, dynamic> m, double monto, String fecha) {
+  final cancelada = (m['estado'] ?? 'Confirmada') == 'Cancelada';
+  final pagado = m['pagado'] == true;
+  final String detalle;
+  final Color color;
+  if (!pagado) {
+    detalle = 'Sin pago registrado';
+    color = Colors.black45;
+  } else if (cancelada) {
+    detalle = 'Pagado \$${monto.toStringAsFixed(2)} ${m['moneda'] ?? 'USD'}'
+        '  ·  Cancelada · pago sin reembolsar';
+    color = Colors.redAccent;
+  } else {
+    detalle = 'Pagado \$${monto.toStringAsFixed(2)} ${m['moneda'] ?? 'USD'}'
+        '  ·  ${m['metodoPago'] ?? 'PayPal'}';
+    color = Colors.green;
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        '${m['nombreDeporte'] ?? 'Disciplina'}'
+        '${fecha.isEmpty ? '' : '  ·  $fecha'}',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      Text(detalle,
+          style: TextStyle(
+              color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+      if (pagado && m['paypalOrderId'] != null)
+        Text('Orden ${m['paypalOrderId']}',
+            style: const TextStyle(color: Colors.black54, fontSize: 12)),
+    ],
+  );
 }

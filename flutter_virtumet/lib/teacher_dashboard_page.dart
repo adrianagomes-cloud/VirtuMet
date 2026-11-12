@@ -750,7 +750,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               Icon(Icons.warning_amber_rounded,
                   color: orangePrimary, size: 20),
               SizedBox(width: 8),
-              Text('AVISOS CRÍTICOS',
+              Text('AVISOS',
                   style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -788,7 +788,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               }
 
               if (comunicados.isEmpty) {
-                return _alertItem('Sin avisos críticos por ahora.');
+                return _alertItem('Sin avisos por ahora.');
               }
 
               return Column(
