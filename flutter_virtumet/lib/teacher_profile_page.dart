@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'teacher_dashboard_page.dart';
+import 'image_search_dialog.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   const TeacherProfilePage({super.key});
@@ -201,7 +202,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                             child: Text(
                               useUrlMode
                                   ? 'Subir archivo desde dispositivo'
-                                  : 'Usar enlace URL de imagen',
+                                  : 'Usar URL / Buscar imagen',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: orangePrimary,
@@ -304,6 +305,20 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                 ),
                               ),
                               onChanged: (_) => setDialogState(() {}),
+                            ),
+                            const SizedBox(height: 8),
+                            // Mini buscador de imágenes (Wikimedia Commons)
+                            OutlinedButton.icon(
+                              onPressed: isUploading
+                                  ? null
+                                  : () async {
+                                      final url = await showImageSearchDialog(ctx);
+                                      if (url != null && url.isNotEmpty) {
+                                        setDialogState(() => urlCtrl.text = url);
+                                      }
+                                    },
+                              icon: const Icon(Icons.image_search, size: 18),
+                              label: const Text('Buscar imagen'),
                             ),
                             if (urlCtrl.text.trim().isNotEmpty) ...[
                               const SizedBox(height: 16),
