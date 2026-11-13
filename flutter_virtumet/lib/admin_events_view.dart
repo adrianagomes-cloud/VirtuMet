@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminEventsView extends StatefulWidget {
   const AdminEventsView({super.key});
@@ -23,381 +27,193 @@ class _AdminEventsViewState extends State<AdminEventsView> {
   }
 
   // ===========================================================================
-  // MODAL PARA CREAR UN NUEVO EVENTO
+  // SUBIDA Y RENDERIZADO DE IMÁGENES DESDE COMPUTADORA O URL
   // ===========================================================================
-  void _showCreateEventDialog(BuildContext context, {DateTime? initialDate}) {
-    final formKey = GlobalKey<FormState>();
-    final tituloCtrl = TextEditingController();
-    final descripcionCtrl = TextEditingController();
-    final lugarCtrl = TextEditingController();
-    final horaCtrl = TextEditingController();
-    final imageUrlCtrl = TextEditingController();
+  Future<String> _uploadEventBytes(Uint8List bytes, String? fileName) async {
+    try {
+      final path =
+          'eventos/${DateTime.now().millisecondsSinceEpoch}_${fileName ?? 'evento.jpg'}';
+      final ref = FirebaseStorage.instance.ref().child(path);
+      final uploadTask = await ref
+          .putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          )
+          .timeout(const Duration(seconds: 8));
+      return await uploadTask.ref.getDownloadURL();
+    } catch (_) {
+      if (bytes.lengthInBytes > 750 * 1024) {
+        throw Exception(
+            'La imagen pesa más de 750 KB. Elige una foto más ligera o usa un enlace URL.');
+      }
+      return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    }
+  }
 
-    DateTime eventDate = initialDate ?? _selectedDate;
-    String? selectedSport;
+  Widget _buildEventImage(
+    String imageUrl,
+    String deporte, {
+    double width = 80,
+    double height = 80,
+  }) {
+    final cleanUrl = imageUrl.trim();
+    if (cleanUrl.isEmpty) {
+      return _buildFallbackIcon(deporte, width: width, height: height);
+    }
 
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final String fechaTexto =
-                '${eventDate.day.toString().padLeft(2, '0')}/${eventDate.month.toString().padLeft(2, '0')}/${eventDate.year}';
-
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Row(
-                children: [
-                  Icon(Icons.event_available, color: AdminEventsView.blueDark),
-                  SizedBox(width: 10),
-                  Text(
-                    'Programar Nuevo Evento',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AdminEventsView.blueDark,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 520,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Deporte / Disciplina *',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: AdminEventsView.blueDark,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('deportes')
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            List<String> deportesList = [];
-                            if (snapshot.hasData && snapshot.data != null) {
-                              deportesList = snapshot.data!.docs
-                                  .map((doc) => (doc.data()
-                                              as Map<String, dynamic>)['nombre']
-                                          ?.toString() ??
-                                      doc.id)
-                                  .where((name) => name.isNotEmpty)
-                                  .toList();
-                            }
-
-                            if (deportesList.isEmpty) {
-                              deportesList = [
-                                'Fútbol Sala',
-                                'Baloncesto',
-                                'Voleibol',
-                                'Tenis de Campo',
-                                'Atletismo',
-                                'General / Inter-facultades'
-                              ];
-                            }
-
-                            return DropdownButtonFormField<String>(
-                              value: selectedSport,
-                              decoration: InputDecoration(
-                                hintText: 'Selecciona una disciplina',
-                                filled: true,
-                                fillColor: const Color(0xFFF8F9FA),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFCBD5E1)),
-                                ),
-                              ),
-                              items: deportesList.map((deporte) {
-                                return DropdownMenuItem(
-                                  value: deporte,
-                                  child: Text(deporte,
-                                      style: const TextStyle(fontSize: 13)),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                setModalState(() => selectedSport = val);
-                              },
-                              validator: (v) => v == null || v.isEmpty
-                                  ? 'Selecciona un deporte'
-                                  : null,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildDialogTextField(
-                          label: 'Nombre / Título del Evento *',
-                          hint: 'Ej: Torneo Interescuelas C-2026',
-                          controller: tituloCtrl,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Ingresa el título'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildDialogTextField(
-                          label: 'URL de la Imagen (Opcional)',
-                          hint: 'Ej: https://images.unsplash.com/photo-1574629810360-7efbbe195018',
-                          controller: imageUrlCtrl,
-                        ),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Fecha del Evento *',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: AdminEventsView.blueDark,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  InkWell(
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate: eventDate,
-                                        firstDate: DateTime(2024),
-                                        lastDate: DateTime(2030),
-                                      );
-                                      if (picked != null) {
-                                        setModalState(() => eventDate = picked);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF8F9FA),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: const Color(0xFFCBD5E1)),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(fechaTexto,
-                                              style: const TextStyle(
-                                                  fontSize: 13)),
-                                          const Icon(
-                                              Icons.calendar_month_outlined,
-                                              size: 18,
-                                              color: AdminEventsView.blueDark),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Hora del Evento *',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: AdminEventsView.blueDark,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  TextFormField(
-                                    controller: horaCtrl,
-                                    readOnly: true,
-                                    onTap: () async {
-                                      final pickedTime = await showTimePicker(
-                                        context: context,
-                                        initialTime:
-                                            const TimeOfDay(hour: 10, minute: 0),
-                                      );
-                                      if (pickedTime != null) {
-                                        horaCtrl.text =
-                                            pickedTime.format(context);
-                                      }
-                                    },
-                                    style: const TextStyle(fontSize: 13),
-                                    decoration: InputDecoration(
-                                      hintText: '10:00 AM',
-                                      filled: true,
-                                      fillColor: const Color(0xFFF8F9FA),
-                                      suffixIcon: const Icon(
-                                          Icons.access_time,
-                                          size: 18,
-                                          color: AdminEventsView.blueDark),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 14, vertical: 12),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFFCBD5E1)),
-                                      ),
-                                    ),
-                                    validator: (v) => v == null || v.trim().isEmpty
-                                        ? 'Indica la hora'
-                                        : null,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildDialogTextField(
-                          label: 'Lugar / Ubicación *',
-                          hint: 'Ej: Cancha Principal - Campus UNIMET',
-                          controller: lugarCtrl,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Ingresa el lugar'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildDialogTextField(
-                          label: 'Descripción / ¿De qué se trata? *',
-                          hint: 'Detalla las reglas, categorías o propósito del evento...',
-                          controller: descripcionCtrl,
-                          maxLines: 3,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Ingresa la descripción'
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancelar',
-                      style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminEventsView.orangePrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () async {
-                    if (!formKey.currentState!.validate()) return;
-
-                    final String fechaKey = _formatDateKey(eventDate);
-
-                    await FirebaseFirestore.instance.collection('eventos').add({
-                      'titulo': tituloCtrl.text.trim(),
-                      'deporte': selectedSport,
-                      'descripcion': descripcionCtrl.text.trim(),
-                      'lugar': lugarCtrl.text.trim(),
-                      'hora': horaCtrl.text.trim(),
-                      'imageUrl': imageUrlCtrl.text.trim(),
-                      'fechaKey': fechaKey,
-                      'fechaTimestamp': Timestamp.fromDate(eventDate),
-                      'creadoEn': FieldValue.serverTimestamp(),
-                    });
-
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('¡Evento registrado exitosamente!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.check, size: 18),
-                  label: const Text('Guardar Evento',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
+    if (cleanUrl.startsWith('data:image')) {
+      try {
+        final base64Str = cleanUrl.split(',').last;
+        final Uint8List bytes = base64Decode(base64Str);
+        return Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              _buildFallbackIcon(deporte, width: width, height: height),
         );
-      },
+      } catch (_) {
+        return _buildFallbackIcon(deporte, width: width, height: height);
+      }
+    }
+
+    return Image.network(
+      cleanUrl,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) =>
+          _buildFallbackIcon(deporte, width: width, height: height),
     );
   }
 
   // ===========================================================================
-  // MODAL PARA EDITAR / MODIFICAR UN EVENTO EXISTENTE
+  // MODAL UNIFICADO PARA CREAR O EDITAR UN EVENTO
   // ===========================================================================
+  void _showCreateEventDialog(BuildContext context, {DateTime? initialDate}) {
+    _openEventFormDialog(context, initialDate: initialDate);
+  }
+
   void _showEditEventDialog(
       BuildContext context, String docId, Map<String, dynamic> data) {
+    _openEventFormDialog(context, docId: docId, existingData: data);
+  }
+
+  void _openEventFormDialog(
+    BuildContext context, {
+    String? docId,
+    Map<String, dynamic>? existingData,
+    DateTime? initialDate,
+  }) {
+    final bool isEditing = docId != null && existingData != null;
     final formKey = GlobalKey<FormState>();
 
-    final tituloCtrl = TextEditingController(text: data['titulo'] ?? '');
-    final descripcionCtrl = TextEditingController(text: data['descripcion'] ?? '');
-    final lugarCtrl = TextEditingController(text: data['lugar'] ?? '');
-    final horaCtrl = TextEditingController(text: data['hora'] ?? '');
-    final imageUrlCtrl = TextEditingController(
-        text: data['imageUrl'] ?? data['imagen'] ?? data['fotoUrl'] ?? '');
+    final tituloCtrl =
+        TextEditingController(text: existingData?['titulo'] ?? '');
+    final descripcionCtrl =
+        TextEditingController(text: existingData?['descripcion'] ?? '');
+    final lugarCtrl =
+        TextEditingController(text: existingData?['lugar'] ?? '');
+    final horaCtrl = TextEditingController(text: existingData?['hora'] ?? '');
 
-    DateTime eventDate = _selectedDate;
-    if (data['fechaTimestamp'] != null && data['fechaTimestamp'] is Timestamp) {
-      eventDate = (data['fechaTimestamp'] as Timestamp).toDate();
-    } else if (data['fechaKey'] != null) {
-      try {
-        final parts = (data['fechaKey'] as String).split('-');
-        if (parts.length == 3) {
-          eventDate = DateTime(
-              int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
-        }
-      } catch (_) {}
+    final String existingImageUrl = (existingData?['imageUrl'] ??
+            existingData?['imagen'] ??
+            existingData?['fotoUrl'] ??
+            '')
+        .toString()
+        .trim();
+
+    final imageUrlCtrl = TextEditingController(
+      text: existingImageUrl.startsWith('data:image') ? '' : existingImageUrl,
+    );
+
+    final ImagePicker picker = ImagePicker();
+    Uint8List? pickedBytes;
+    String? pickedFileName;
+    bool useUrlMode = false;
+    bool isSaving = false;
+
+    DateTime eventDate = initialDate ?? _selectedDate;
+    if (isEditing) {
+      if (existingData['fechaTimestamp'] != null &&
+          existingData['fechaTimestamp'] is Timestamp) {
+        eventDate = (existingData['fechaTimestamp'] as Timestamp).toDate();
+      } else if (existingData['fechaKey'] != null) {
+        try {
+          final parts = (existingData['fechaKey'] as String).split('-');
+          if (parts.length == 3) {
+            eventDate = DateTime(int.parse(parts[0]), int.parse(parts[1]),
+                int.parse(parts[2]));
+          }
+        } catch (_) {}
+      }
     }
 
-    String? selectedSport = data['deporte']?.toString();
+    String? selectedSport = existingData?['deporte']?.toString();
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final String fechaTexto =
                 '${eventDate.day.toString().padLeft(2, '0')}/${eventDate.month.toString().padLeft(2, '0')}/${eventDate.year}';
 
+            Future<void> pickFromComputer() async {
+              try {
+                final XFile? file = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: 1200,
+                  maxHeight: 1200,
+                  imageQuality: 80,
+                );
+                if (file == null) return;
+                final bytes = await file.readAsBytes();
+                setModalState(() {
+                  pickedBytes = bytes;
+                  pickedFileName = file.name;
+                  useUrlMode = false;
+                });
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('No se pudo seleccionar la imagen: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+
             return AlertDialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.edit_calendar, color: AdminEventsView.blueDark),
-                  SizedBox(width: 10),
-                  Text(
-                    'Modificar Evento',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AdminEventsView.blueDark,
-                      fontSize: 18,
+                  Icon(
+                    isEditing ? Icons.edit_calendar : Icons.event_available,
+                    color: AdminEventsView.blueDark,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isEditing
+                          ? 'Modificar Evento'
+                          : 'Programar Nuevo Evento',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AdminEventsView.blueDark,
+                        fontSize: 18,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close, color: Colors.grey),
                   ),
                 ],
               ),
@@ -493,11 +309,190 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                         ),
                         const SizedBox(height: 16),
 
-                        _buildDialogTextField(
-                          label: 'URL de la Imagen (Directa de la foto)',
-                          hint: 'Ej: https://images.unsplash.com/photo-1574629810360-7efbbe195018',
-                          controller: imageUrlCtrl,
+                        // SECCIÓN DE IMAGEN (DESDE COMPUTADORA O ENLACE URL)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              useUrlMode
+                                  ? 'Imagen del Evento (Enlace URL)'
+                                  : 'Imagen del Evento (Desde computadora)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: AdminEventsView.blueDark,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () {
+                                      setModalState(() {
+                                        useUrlMode = !useUrlMode;
+                                      });
+                                    },
+                              child: Text(
+                                useUrlMode
+                                    ? 'Subir desde computadora'
+                                    : 'Usar enlace URL',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AdminEventsView.orangePrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 6),
+
+                        if (!useUrlMode)
+                          InkWell(
+                            onTap: isSaving ? null : pickFromComputer,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: double.infinity,
+                              height: 175,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8F9FA),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFCBD5E1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: pickedBytes != null
+                                  ? Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(11),
+                                          child: Image.memory(
+                                            pickedBytes!,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          bottom: 10,
+                                          right: 10,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: AdminEventsView.blueDark
+                                                  .withValues(alpha: 0.85),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: const Text(
+                                              'Haz clic para cambiar la imagen',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : existingImageUrl.isNotEmpty
+                                      ? Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(11),
+                                              child: _buildEventImage(
+                                                existingImageUrl,
+                                                selectedSport ?? 'Evento',
+                                                width: double.infinity,
+                                                height: 175,
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom: 10,
+                                              right: 10,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: AdminEventsView
+                                                      .blueDark
+                                                      .withValues(alpha: 0.85),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: const Text(
+                                                  'Imagen actual • Clic para subir otra',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : const Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.cloud_upload_outlined,
+                                                size: 38,
+                                                color: AdminEventsView
+                                                    .orangePrimary),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Haz clic para subir una imagen desde tu computadora',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: AdminEventsView.blueDark,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              'Formatos JPG o PNG (Opcional)',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                            ),
+                          )
+                        else
+                          TextFormField(
+                            controller: imageUrlCtrl,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Ej: https://images.unsplash.com/photo-1574629810360-7efbbe195018',
+                              hintStyle: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
+                              prefixIcon: const Icon(Icons.link,
+                                  size: 18, color: AdminEventsView.blueDark),
+                              filled: true,
+                              fillColor: const Color(0xFFF8F9FA),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFCBD5E1)),
+                              ),
+                            ),
+                            onChanged: (_) {
+                              setModalState(() {
+                                pickedBytes = null;
+                              });
+                            },
+                          ),
                         const SizedBox(height: 16),
 
                         Row(
@@ -555,7 +550,6 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                               ),
                             ),
                             const SizedBox(width: 12),
-
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,8 +582,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                       hintText: '10:00 AM',
                                       filled: true,
                                       fillColor: const Color(0xFFF8F9FA),
-                                      suffixIcon: const Icon(
-                                          Icons.access_time,
+                                      suffixIcon: const Icon(Icons.access_time,
                                           size: 18,
                                           color: AdminEventsView.blueDark),
                                       contentPadding:
@@ -601,9 +594,10 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                             color: Color(0xFFCBD5E1)),
                                       ),
                                     ),
-                                    validator: (v) => v == null || v.trim().isEmpty
-                                        ? 'Indica la hora'
-                                        : null,
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
+                                            ? 'Indica la hora'
+                                            : null,
                                   ),
                                 ],
                               ),
@@ -624,7 +618,8 @@ class _AdminEventsViewState extends State<AdminEventsView> {
 
                         _buildDialogTextField(
                           label: 'Descripción / ¿De qué se trata? *',
-                          hint: 'Detalla las reglas, categorías o propósito del evento...',
+                          hint:
+                              'Detalla las reglas, categorías o propósito del evento...',
                           controller: descripcionCtrl,
                           maxLines: 3,
                           validator: (v) => v == null || v.trim().isEmpty
@@ -638,49 +633,111 @@ class _AdminEventsViewState extends State<AdminEventsView> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(ctx),
+                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
                   child: const Text('Cancelar',
                       style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminEventsView.blueDark,
+                    backgroundColor: isEditing
+                        ? AdminEventsView.blueDark
+                        : AdminEventsView.orangePrimary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
-                  onPressed: () async {
-                    if (!formKey.currentState!.validate()) return;
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
 
-                    final String fechaKey = _formatDateKey(eventDate);
+                          setModalState(() => isSaving = true);
 
-                    await FirebaseFirestore.instance
-                        .collection('eventos')
-                        .doc(docId)
-                        .update({
-                      'titulo': tituloCtrl.text.trim(),
-                      'deporte': selectedSport,
-                      'descripcion': descripcionCtrl.text.trim(),
-                      'lugar': lugarCtrl.text.trim(),
-                      'hora': horaCtrl.text.trim(),
-                      'imageUrl': imageUrlCtrl.text.trim(),
-                      'fechaKey': fechaKey,
-                      'fechaTimestamp': Timestamp.fromDate(eventDate),
-                    });
+                          try {
+                            String finalImageUrl;
+                            if (!useUrlMode && pickedBytes != null) {
+                              finalImageUrl = await _uploadEventBytes(
+                                  pickedBytes!, pickedFileName);
+                            } else if (useUrlMode) {
+                              finalImageUrl = imageUrlCtrl.text.trim();
+                            } else {
+                              finalImageUrl = existingImageUrl;
+                            }
 
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('¡Evento actualizado correctamente!'),
-                          backgroundColor: Colors.blue,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.save, size: 18),
-                  label: const Text('Guardar Cambios',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                            final String fechaKey = _formatDateKey(eventDate);
+
+                            if (isEditing) {
+                              await FirebaseFirestore.instance
+                                  .collection('eventos')
+                                  .doc(docId)
+                                  .update({
+                                'titulo': tituloCtrl.text.trim(),
+                                'deporte': selectedSport,
+                                'descripcion': descripcionCtrl.text.trim(),
+                                'lugar': lugarCtrl.text.trim(),
+                                'hora': horaCtrl.text.trim(),
+                                'imageUrl': finalImageUrl,
+                                'fechaKey': fechaKey,
+                                'fechaTimestamp': Timestamp.fromDate(eventDate),
+                              });
+                            } else {
+                              await FirebaseFirestore.instance
+                                  .collection('eventos')
+                                  .add({
+                                'titulo': tituloCtrl.text.trim(),
+                                'deporte': selectedSport,
+                                'descripcion': descripcionCtrl.text.trim(),
+                                'lugar': lugarCtrl.text.trim(),
+                                'hora': horaCtrl.text.trim(),
+                                'imageUrl': finalImageUrl,
+                                'fechaKey': fechaKey,
+                                'fechaTimestamp': Timestamp.fromDate(eventDate),
+                                'creadoEn': FieldValue.serverTimestamp(),
+                              });
+                            }
+
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(isEditing
+                                      ? '¡Evento actualizado correctamente!'
+                                      : '¡Evento registrado exitosamente!'),
+                                  backgroundColor:
+                                      isEditing ? Colors.blue : Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setModalState(() => isSaving = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al guardar evento: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(isEditing ? Icons.save : Icons.check, size: 18),
+                  label: Text(
+                    isSaving
+                        ? 'Guardando...'
+                        : (isEditing ? 'Guardar Cambios' : 'Guardar Evento'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             );
@@ -695,7 +752,8 @@ class _AdminEventsViewState extends State<AdminEventsView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirmar eliminación'),
-        content: const Text('¿Estás seguro de que deseas eliminar este evento?'),
+        content:
+            const Text('¿Estás seguro de que deseas eliminar este evento?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -704,7 +762,8 @@ class _AdminEventsViewState extends State<AdminEventsView> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -769,8 +828,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                 icon: const Icon(Icons.add, size: 20),
                 label: const Text(
                   'Crear Nuevo Evento',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
             ],
@@ -1029,15 +1087,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: imageUrl.isNotEmpty
-                ? Image.network(
-                    imageUrl,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildFallbackIcon(deporte),
-                  )
-                : _buildFallbackIcon(deporte),
+            child: _buildEventImage(imageUrl, deporte, width: 80, height: 80),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1120,10 +1170,14 @@ class _AdminEventsViewState extends State<AdminEventsView> {
     );
   }
 
-  Widget _buildFallbackIcon(String deporte) {
+  Widget _buildFallbackIcon(
+    String deporte, {
+    double width = 80,
+    double height = 80,
+  }) {
     return Container(
-      width: 80,
-      height: 80,
+      width: width,
+      height: height,
       color: AdminEventsView.blueDark,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

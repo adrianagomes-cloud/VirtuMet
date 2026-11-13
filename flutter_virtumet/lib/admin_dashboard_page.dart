@@ -7,8 +7,9 @@ import 'admin_users_view.dart';
 import 'admin_fichas_view.dart';
 import 'admin_stats_view.dart';
 import 'admin_events_view.dart';
-import 'admin_reviews_view.dart'; // <-- Vista de reseñas del administrador
-import 'admin_announcements_view.dart'; // Avisos administrables (CRUD)
+import 'admin_reviews_view.dart';
+import 'admin_announcements_view.dart';
+import 'community_view.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -19,7 +20,7 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
-  
+
   // Índice de sección activa:
   // 0: Resumen / Inicio
   // 1: Disciplinas
@@ -29,6 +30,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // 5: Reportes y Avisos
   // 6: Reseñas (AdminReviewsView)
   // 7: Avisos (AdminAnnouncementsView)
+  // 8: Comunidad (CommunityView)
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -59,7 +61,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         child: Column(
           children: [
             _buildTopNavbar(context, adminEmail),
-
             if (_selectedIndex == 1) ...[
               const AdminSportsView(),
             ] else if (_selectedIndex == 2) ...[
@@ -71,12 +72,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ] else if (_selectedIndex == 5) ...[
               const AdminStatsView(),
             ] else if (_selectedIndex == 6) ...[
-              const AdminReviewsView(), // <-- Integración exacta de la vista de reseñas
+              const AdminReviewsView(),
             ] else if (_selectedIndex == 7) ...[
               const AdminAnnouncementsView(),
+            ] else if (_selectedIndex == 8) ...[
+              const CommunityView(userRole: 'admin'),
             ] else ...[
               _buildHeroBanner(nombreAdmin),
-
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
@@ -85,7 +87,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   children: [
                     _buildKpiGrid(),
                     const SizedBox(height: 32),
-
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final bool isDesktop = constraints.maxWidth > 900;
@@ -97,7 +98,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               child: _buildSportsManagementCard(),
                             ),
                             if (isDesktop) const SizedBox(width: 28),
-
                             if (isDesktop)
                               Expanded(
                                 flex: 1,
@@ -120,7 +120,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
               ),
             ],
-
             _buildFooter(),
           ],
         ),
@@ -130,7 +129,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildTopNavbar(BuildContext context, String email) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
       color: Colors.white,
       child: Row(
         children: [
@@ -139,9 +138,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
               'lib/assets/Logo.png',
-              height: 58,
+              height: 54,
               fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => Row(
+              errorBuilder: (_, __, ___) => Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
@@ -165,18 +164,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
             ),
           ),
-          const SizedBox(width: 40),
-
+          const SizedBox(width: 24),
           _navLink('Disciplinas', targetIndex: 1),
           _navLink('Usuarios', targetIndex: 2),
           _navLink('Fichas e Inscripciones', targetIndex: 3),
           _navLink('Eventos', targetIndex: 4),
           _navLink('Reportes y Avisos', targetIndex: 5),
-          _navLink('Reseñas', targetIndex: 6), // <-- Pestaña de Reseñas restaurada en la barra
+          _navLink('Reseñas', targetIndex: 6),
           _navLink('Avisos', targetIndex: 7),
-
+          _navLink('Comunidad', targetIndex: 8),
           const Spacer(),
-
           Row(
             children: [
               Container(
@@ -220,7 +217,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final bool isSelected = _selectedIndex == targetIndex;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: InkWell(
         onTap: () {
           setState(() {
@@ -378,12 +375,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         if (usersSnapshot.hasData && usersSnapshot.data != null) {
           for (var doc in usersSnapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
-            final String rol =
-                (data['rol'] ?? data['role'] ?? '').toString().toLowerCase().trim();
+            final String rol = (data['rol'] ?? data['role'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
 
             if (rol == 'entrenador' || rol == 'profesor' || rol == 'maestro') {
               totalMaestros++;
-            } else if (rol == 'estudiante' || rol == 'atleta' || rol == 'alumno') {
+            } else if (rol == 'estudiante' ||
+                rol == 'atleta' ||
+                rol == 'alumno') {
               totalEstudiantes++;
             }
           }
@@ -588,7 +589,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ],
           ),
           const SizedBox(height: 24),
-
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
             builder: (context, snapshot) {
@@ -636,7 +636,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               final filteredDocs = docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final name = (data['nombre'] ?? '').toString().toLowerCase();
-                final coach = (data['entrenador'] ?? '').toString().toLowerCase();
+                final coach =
+                    (data['entrenador'] ?? '').toString().toLowerCase();
                 final place = (data['lugar'] ?? '').toString().toLowerCase();
 
                 return name.contains(_searchQuery) ||
@@ -660,10 +661,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 children: filteredDocs.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final String nombre = data['nombre'] ?? 'Sin Nombre';
-                  final String entrenador = data['entrenador'] ?? 'Sin Entrenador';
+                  final String entrenador =
+                      data['entrenador'] ?? 'Sin Entrenador';
                   final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
                   final int atletas = (data['cuposInscritos'] ?? 0) as int;
-                  final String estado = (data['estado'] ?? 'ACTIVA').toString().toUpperCase();
+                  final String estado =
+                      (data['estado'] ?? 'ACTIVA').toString().toUpperCase();
                   final String imageUrl = (data['imageUrl'] ?? '').toString();
 
                   return _sportAdminRow(
@@ -708,11 +711,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       height: 48,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+                        child:
+                            Icon(Icons.sports_soccer, color: blueDark, size: 22),
                       ),
                     )
                   : const Center(
-                      child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+                      child:
+                          Icon(Icons.sports_soccer, color: blueDark, size: 22),
                     ),
             ),
           ),
@@ -809,10 +814,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  /// Avisos críticos calculados en tiempo real desde Firestore (sin textos
-  /// fijos): disciplinas fuera de servicio, cupos agotados o casi llenos
-  /// (>= 80 %) e inscripciones activas sin pago registrado. Las inscripciones
-  /// canceladas no cuentan. Muestra como máximo 4 avisos.
   Widget _buildAlertasReales() {
     final db = FirebaseFirestore.instance;
     return StreamBuilder<QuerySnapshot>(
@@ -831,7 +832,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               );
             }
 
-            // Inscritos activos por disciplina y total sin pago
             final Map<String, int> porDeporte = {};
             int sinPago = 0;
             for (final d in inscSnap.data!.docs) {
@@ -930,11 +930,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('eventos')
-                .snapshots(),
+            stream:
+                FirebaseFirestore.instance.collection('eventos').snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
@@ -964,7 +962,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 children: docs.take(4).map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final String titulo = (data['titulo'] ?? 'Evento').toString();
-                  final String deporte = (data['deporte'] ?? 'General').toString();
+                  final String deporte =
+                      (data['deporte'] ?? 'General').toString();
                   final String fechaKey = (data['fechaKey'] ?? '').toString();
                   final String hora = (data['hora'] ?? '').toString();
 
@@ -985,7 +984,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               );
             },
           ),
-
           const SizedBox(height: 14),
           InkWell(
             onTap: () => setState(() => _selectedIndex = 4),
@@ -1048,10 +1046,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
@@ -1065,8 +1063,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
             ],
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Servicios Firestore y Autenticación operando con normalidad.',
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),

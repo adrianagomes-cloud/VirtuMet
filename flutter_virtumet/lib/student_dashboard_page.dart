@@ -7,6 +7,7 @@ import 'student_profile_page.dart';
 import 'student_review_form_view.dart';
 import 'student_announcements_view.dart';
 import 'aviso_audiencia.dart';
+import 'community_view.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -20,7 +21,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
   // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 5: Avisos
   int _selectedIndex = 0;
-  String _searchQuery = '';
 
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color orangePrimary = Color(0xFFFF5500);
@@ -59,22 +59,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
   }
 
-  IconData _getSportIcon(String nombre) {
-    final lower = nombre.toLowerCase();
-    if (lower.contains('fútbol') || lower.contains('futbol')) {
-      return Icons.sports_soccer;
-    } else if (lower.contains('baloncesto') || lower.contains('basket')) {
-      return Icons.sports_basketball;
-    } else if (lower.contains('voleibol') || lower.contains('voley')) {
-      return Icons.sports_volleyball;
-    } else if (lower.contains('natación') || lower.contains('natacion')) {
-      return Icons.pool;
-    } else if (lower.contains('tenis')) {
-      return Icons.sports_tennis;
-    }
-    return Icons.fitness_center;
-  }
-
   @override
   Widget build(BuildContext context) {
     final String authUid = _currentUser?.uid ?? '';
@@ -88,7 +72,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               .snapshots()
           : const Stream.empty(),
       builder: (context, userSnapshot) {
-        String nombreEstudiante = _currentUser?.displayName ?? 'Estudiante UNIMET';
+        String nombreEstudiante =
+            _currentUser?.displayName ?? 'Estudiante UNIMET';
         String fotoUrl = _currentUser?.photoURL ?? '';
 
         if (userSnapshot.hasData && userSnapshot.data!.data() != null) {
@@ -155,6 +140,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         child: _buildMainContent(
                             misInscripciones, nombreEstudiante),
                       )
+                    else if (_selectedIndex == 3)
+                      const CommunityView(userRole: 'student')
                     else if (_selectedIndex == 5)
                       const StudentAnnouncementsView()
                     else
@@ -188,7 +175,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                           const SizedBox(width: 32),
                                           Expanded(
                                             flex: 1,
-                                            child: _buildRightSidebar(misInscripciones),
+                                            child: _buildRightSidebar(
+                                                misInscripciones),
                                           ),
                                         ],
                                       ],
@@ -394,18 +382,25 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
         return Row(
           children: [
-            _statCard('DISCIPLINAS INSCRITAS', totalInscritas.toString().padLeft(2, '0'), Icons.people_outline, isLive: true),
+            _statCard('DISCIPLINAS INSCRITAS',
+                totalInscritas.toString().padLeft(2, '0'), Icons.people_outline,
+                isLive: true),
             const SizedBox(width: 24),
-            _statCard('ACTIVIDADES HOY', totalInscritas > 0 ? '01' : '00', Icons.calendar_today_outlined, isLive: true),
+            _statCard('ACTIVIDADES HOY', totalInscritas > 0 ? '01' : '00',
+                Icons.calendar_today_outlined,
+                isLive: true),
             const SizedBox(width: 24),
-            _statCard('PRÓXIMOS EVENTOS', totalEventos.toString().padLeft(2, '0'), Icons.emoji_events_outlined, isLive: true),
+            _statCard('PRÓXIMOS EVENTOS',
+                totalEventos.toString().padLeft(2, '0'), Icons.emoji_events_outlined,
+                isLive: true),
           ],
         );
       },
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, {bool isLive = false}) {
+  Widget _statCard(String title, String value, IconData icon,
+      {bool isLive = false}) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -419,29 +414,49 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                 Icon(icon, color: orangePrimary, size: 24),
                 if (isLive)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                    child: const Text('ACTIVO', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Text('ACTIVO',
+                        style: TextStyle(
+                            color: Colors.green,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
                   ),
               ],
             ),
             const SizedBox(height: 24),
-            Text(title, style: const TextStyle(color: textGrey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            Text(title,
+                style: const TextStyle(
+                    color: textGrey,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1)),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(color: blueDark, fontSize: 32, fontWeight: FontWeight.bold)),
+            Text(value,
+                style: const TextStyle(
+                    color: blueDark,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMainContent(List<DocumentSnapshot> misInscripciones, String nombreEstudiante) {
+  Widget _buildMainContent(
+      List<DocumentSnapshot> misInscripciones, String nombreEstudiante) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Deportes Inscritos', style: TextStyle(color: blueDark, fontSize: 22, fontWeight: FontWeight.bold)),
+        const Text('Deportes Inscritos',
+            style: TextStyle(
+                color: blueDark, fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        const Text('Disciplinas asignadas e inscritas en el sistema', style: TextStyle(color: textGrey, fontSize: 13)),
+        const Text('Disciplinas asignadas e inscritas en el sistema',
+            style: TextStyle(color: textGrey, fontSize: 13)),
         const SizedBox(height: 20),
         if (misInscripciones.isEmpty)
           _buildEmptyStateContainer()
@@ -452,14 +467,21 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               final String deporteId = (data['deporteId'] ?? '').toString();
 
               return StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance.collection('deportes').doc(deporteId).snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('deportes')
+                    .doc(deporteId)
+                    .snapshots(),
                 builder: (context, sportSnapshot) {
                   Map<String, dynamic> sportData = {};
-                  if (sportSnapshot.hasData && sportSnapshot.data!.exists && sportSnapshot.data!.data() != null) {
-                    sportData = sportSnapshot.data!.data() as Map<String, dynamic>;
+                  if (sportSnapshot.hasData &&
+                      sportSnapshot.data!.exists &&
+                      sportSnapshot.data!.data() != null) {
+                    sportData =
+                        sportSnapshot.data!.data() as Map<String, dynamic>;
                   }
 
-                  final String deporteNombre = sportData['nombre'] ?? data['nombreDeporte'] ?? 'Disciplina';
+                  final String deporteNombre =
+                      sportData['nombre'] ?? data['nombreDeporte'] ?? 'Disciplina';
                   final String horario =
                       (sportData['horario'] ?? data['horario'] ?? '')
                           .toString()
@@ -468,9 +490,12 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       (sportData['lugar'] ?? data['lugar'] ?? '')
                           .toString()
                           .trim();
-                  final String entrenador = (sportData['entrenador'] ?? '').toString().trim();
-                  final String entrenadorUid = (sportData['entrenadorUid'] ?? '').toString().trim();
-                  final String imageUrl = (sportData['imageUrl'] ?? '').toString().trim();
+                  final String entrenador =
+                      (sportData['entrenador'] ?? '').toString().trim();
+                  final String entrenadorUid =
+                      (sportData['entrenadorUid'] ?? '').toString().trim();
+                  final String imageUrl =
+                      (sportData['imageUrl'] ?? '').toString().trim();
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -495,12 +520,20 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(deporteNombre, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: blueDark)),
+                              Text(deporteNombre,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: blueDark)),
                               const SizedBox(height: 4),
-                              Text('$horario • $lugar', style: const TextStyle(fontSize: 12, color: textGrey)),
+                              Text('$horario • $lugar',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: textGrey)),
                               if (entrenador.isNotEmpty) ...[
                                 const SizedBox(height: 2),
-                                Text('Profesor: $entrenador', style: const TextStyle(fontSize: 12, color: textGrey)),
+                                Text('Profesor: $entrenador',
+                                    style: const TextStyle(
+                                        fontSize: 12, color: textGrey)),
                               ],
                             ],
                           ),
@@ -508,7 +541,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         TextButton.icon(
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.amber.shade800,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                           ),
                           onPressed: () {
                             showDialog(
@@ -521,27 +555,35 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                     deporteId: deporteId,
                                     deporteNombre: deporteNombre,
                                     profesorUid: entrenadorUid,
-                                    profesorNombre: entrenador.isNotEmpty ? entrenador : 'Profesor',
+                                    profesorNombre: entrenador.isNotEmpty
+                                        ? entrenador
+                                        : 'Profesor',
                                   ),
                                 ),
                               ),
                             );
                           },
-                          icon: const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
-                          label: const Text('Calificar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          icon: const Icon(Icons.star_rounded,
+                              size: 16, color: Colors.amber),
+                          label: const Text('Calificar',
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: Colors.green.withValues(alpha: 0.3)),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                              Icon(Icons.check_circle_rounded,
+                                  size: 14, color: Colors.green),
                               SizedBox(width: 6),
                               Text(
                                 'Inscrito',
@@ -581,13 +623,17 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(40),
       decoration: cardDecoration,
-      child: Column(
-        children: const [
+      child: const Column(
+        children: [
           Icon(Icons.sports_basketball_outlined, size: 48, color: textGrey),
           SizedBox(height: 12),
-          Text('No tienes deportes inscritos actualmente.', style: TextStyle(color: blueDark, fontWeight: FontWeight.bold, fontSize: 16)),
+          Text('No tienes deportes inscritos actualmente.',
+              style: TextStyle(
+                  color: blueDark, fontWeight: FontWeight.bold, fontSize: 16)),
           SizedBox(height: 4),
-          Text('Explora el Catálogo Deportivo para inscribirte en una disciplina.', style: TextStyle(color: textGrey, fontSize: 13)),
+          Text(
+              'Explora el Catálogo Deportivo para inscribirte en una disciplina.',
+              style: TextStyle(color: textGrey, fontSize: 13)),
         ],
       ),
     );
@@ -599,7 +645,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       children: [
         _buildCriticalAlertsCard(misInscripciones),
         const SizedBox(height: 24),
-        // Tu widget _buildUpcomingEventsCard exacto tal cual lo enviaste
         _buildUpcomingEventsCard(),
       ],
     );
@@ -609,7 +654,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: blueDark, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+          color: blueDark, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -617,12 +663,14 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             children: [
               Icon(Icons.warning_amber_rounded, color: orangePrimary, size: 20),
               SizedBox(width: 8),
-              Text('AVISOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('AVISOS',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
             ],
           ),
           const SizedBox(height: 16),
-          // Comunicados del administrador: solo los activos y con prioridad
-          // Importante o Urgente (los Normales se ven en la pestaña Avisos).
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('avisos')
@@ -630,12 +678,13 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                 .snapshots(),
             builder: (context, avisosSnap) {
               return StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('deportes').snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('deportes')
+                    .snapshots(),
                 builder: (context, snap) {
                   if (!snap.hasData) return const SizedBox.shrink();
                   final List<String> avisos = [];
 
-                  // 1) Avisos del administrador (Urgente primero)
                   final comunicados = (avisosSnap.data?.docs ?? [])
                       .map((d) => d.data() as Map<String, dynamic>)
                       .where((m) =>
@@ -648,31 +697,35 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       return peso(a).compareTo(peso(b));
                     });
                   for (final m in comunicados) {
-                    avisos.add('${m['titulo'] ?? 'Aviso'}: ${m['mensaje'] ?? ''}');
+                    avisos.add(
+                        '${m['titulo'] ?? 'Aviso'}: ${m['mensaje'] ?? ''}');
                   }
 
-                  // 2) Avisos automáticos: inscripciones propias sin pago registrado
                   for (final i in misInscripciones) {
                     final m = i.data() as Map<String, dynamic>;
                     if (m['pagado'] != true) {
-                      avisos.add('Pago pendiente en ${m['nombreDeporte'] ?? 'tu disciplina'}');
+                      avisos.add(
+                          'Pago pendiente en ${m['nombreDeporte'] ?? 'tu disciplina'}');
                     }
                   }
 
-                  // 3) Estado de las disciplinas en las que está inscrito
                   final ids = misInscripciones
-                      .map((i) => (i.data() as Map<String, dynamic>)['deporteId']?.toString())
+                      .map((i) => (i.data()
+                              as Map<String, dynamic>)['deporteId']
+                          ?.toString())
                       .toSet();
                   for (final d in snap.data!.docs) {
                     if (!ids.contains(d.id)) continue;
                     final m = d.data() as Map<String, dynamic>;
                     final String estado = (m['estado'] ?? 'Activo').toString();
                     if (estado != 'Activo') {
-                      avisos.add('${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
+                      avisos.add(
+                          '${m['nombre'] ?? 'Disciplina'}: disciplina en estado $estado');
                     }
                   }
                   if (avisos.isEmpty) return _alertItem('Sin avisos por ahora.');
-                  return Column(children: [for (final a in avisos.take(4)) _alertItem(a)]);
+                  return Column(
+                      children: [for (final a in avisos.take(4)) _alertItem(a)]);
                 },
               );
             },
@@ -682,7 +735,10 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             onTap: () => setState(() => _selectedIndex = 5),
             child: const Text(
               'VER TODOS LOS AVISOS >',
-              style: TextStyle(color: orangePrimary, fontSize: 11, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: orangePrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -695,9 +751,15 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Container(width: 6, height: 6, decoration: const BoxDecoration(color: orangePrimary, shape: BoxShape.circle)),
+          Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                  color: orangePrimary, shape: BoxShape.circle)),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12))),
+          Expanded(
+              child: Text(text,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12))),
         ],
       ),
     );
@@ -719,26 +781,45 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             children: [
               Icon(Icons.emoji_events_outlined, color: orangePrimary, size: 20),
               SizedBox(width: 8),
-              Text('PRÓXIMOS EVENTOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: blueDark)),
+              Text('PRÓXIMOS EVENTOS',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: blueDark)),
               Spacer(),
-              Text('EN VIVO', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+              Text('EN VIVO',
+                  style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 4),
-          const Text('Calendario institucional UNIMET en tiempo real', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          const Text('Calendario institucional UNIMET en tiempo real',
+              style: TextStyle(fontSize: 11, color: Colors.grey)),
           const Divider(height: 24),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('eventos').snapshots(),
+            stream:
+                FirebaseFirestore.instance.collection('eventos').snapshots(),
             builder: (context, snapshot) {
               final docs = snapshot.data?.docs ?? [];
-              if (docs.isEmpty) return const Text('No hay eventos próximos', style: TextStyle(fontSize: 12, color: Colors.grey));
+              if (docs.isEmpty) {
+                return const Text('No hay eventos próximos',
+                    style: TextStyle(fontSize: 12, color: Colors.grey));
+              }
               return Column(
                 children: docs.take(3).map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(data['titulo'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: blueDark)),
-                    subtitle: Text(data['fechaKey'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    title: Text(data['titulo'] ?? '',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: blueDark)),
+                    subtitle: Text(data['fechaKey'] ?? '',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
                   );
                 }).toList(),
               );

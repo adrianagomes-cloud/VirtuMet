@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'precio_utils.dart';
 import 'image_search_dialog.dart';
 import 'cancha_selector.dart';
@@ -25,6 +29,60 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     'Individuales',
     'Bienestar',
   ];
+
+  // ===========================================================================
+  // SUBIDA Y RENDERIZADO DE IMÁGENES DESDE COMPUTADORA O URL
+  // ===========================================================================
+  Future<String> _uploadDisciplineBytes(
+      Uint8List bytes, String? fileName) async {
+    try {
+      final path =
+          'deportes/${DateTime.now().millisecondsSinceEpoch}_${fileName ?? 'disciplina.jpg'}';
+      final ref = FirebaseStorage.instance.ref().child(path);
+      final uploadTask = await ref
+          .putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          )
+          .timeout(const Duration(seconds: 8));
+      return await uploadTask.ref.getDownloadURL();
+    } catch (_) {
+      if (bytes.lengthInBytes > 750 * 1024) {
+        throw Exception(
+            'La imagen pesa más de 750 KB. Elige una foto más ligera o usa un enlace URL.');
+      }
+      return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    }
+  }
+
+  Widget _buildImageFromSource(String imageUrl, {double height = 140}) {
+    final cleanUrl = imageUrl.trim();
+    if (cleanUrl.isEmpty) return _cardFallbackHeader(height: height);
+
+    if (cleanUrl.startsWith('data:image')) {
+      try {
+        final base64Str = cleanUrl.split(',').last;
+        final Uint8List bytes = base64Decode(base64Str);
+        return Image.memory(
+          bytes,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _cardFallbackHeader(height: height),
+        );
+      } catch (_) {
+        return _cardFallbackHeader(height: height);
+      }
+    }
+
+    return Image.network(
+      cleanUrl,
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _cardFallbackHeader(height: height),
+    );
+  }
 
   // ===========================================================================
   // HORARIO ESTRUCTURADO (días + hora de inicio + hora de fin)
@@ -66,7 +124,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
 
   /// Busca otras disciplinas que coincidan en día y hora con la que se está
   /// guardando, y que usen el mismo lugar o el mismo entrenador.
-  /// Solo compara disciplinas que ya tengan horario estructurado.
   Future<List<String>> _buscarChoques({
     String? excluirId,
     required String lugar,
@@ -115,7 +172,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   }
 
   // ===========================================================================
-  // CREAR / EDITAR DISCIPLINA (MEDIANTE ENLACE / URL)
+  // CREAR / EDITAR DISCIPLINA (CON IMAGEN DESDE COMPUTADORA O URL)
   // ===========================================================================
   void _openDisciplineForm({DocumentSnapshot? doc}) {
     final isEditing = doc != null;
@@ -125,7 +182,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     final nombreCtrl = TextEditingController(text: data['nombre'] ?? '');
     final cupoMaxCtrl = TextEditingController(
         text: (data['cuposMaximos'] ?? data['cupoMaximo'] ?? 20).toString());
-    // Horario estructurado: días + hora de inicio + hora de fin.
     final String horarioPrevio = (data['horario'] ?? '').toString();
     final Set<String> diasSel = ((data['horarioDias'] as List?) ?? [])
         .map((e) => e.toString())
@@ -138,9 +194,17 @@ class _AdminSportsViewState extends State<AdminSportsView> {
         text: precioATexto(precioDeDisciplina(Map<String, dynamic>.from(data))));
     String? precioError;
     String? cupoError;
+
+    final String existingImageUrl = (data['imageUrl'] ?? '').toString();
     final imageCtrl = TextEditingController(
-        text: data['imageUrl'] ??
-            'https://images.unsplash.com/photo-1517649763962-0c623266200a?auto=format&fit=crop&w=800&q=80');
+      text: existingImageUrl.startsWith('data:image') ? '' : existingImageUrl,
+    );
+
+    final ImagePicker picker = ImagePicker();
+    Uint8List? pickedBytes;
+    String? pickedFileName;
+    bool useUrlMode = false;
+    bool isSaving = false;
 
     String categoriaVal = data['categoria'] ?? 'De equipo';
     String estadoVal = data['estado'] ?? 'Activo';
@@ -152,6 +216,32 @@ class _AdminSportsViewState extends State<AdminSportsView> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            Future<void> pickFromComputer() async {
+              try {
+                final XFile? file = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: 1200,
+                  maxHeight: 1200,
+                  imageQuality: 80,
+                );
+                if (file == null) return;
+                final bytes = await file.readAsBytes();
+                setDialogState(() {
+                  pickedBytes = bytes;
+                  pickedFileName = file.name;
+                  useUrlMode = false;
+                });
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('No se pudo seleccionar la imagen: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+
             return AlertDialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -167,18 +257,24 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                     child: const Icon(Icons.sports, color: blueDark),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    isEditing ? 'Editar Disciplina' : 'Nueva Disciplina',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: blueDark,
-                      fontSize: 18,
+                  Expanded(
+                    child: Text(
+                      isEditing ? 'Editar Disciplina' : 'Nueva Disciplina',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: blueDark,
+                        fontSize: 18,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close, color: Colors.grey),
                   ),
                 ],
               ),
               content: SizedBox(
-                width: 520,
+                width: 540,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -258,12 +354,14 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                 ),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
-                                  initialValue: _categories.contains(categoriaVal)
-                                      ? categoriaVal
-                                      : 'De equipo',
+                                  initialValue:
+                                      _categories.contains(categoriaVal)
+                                          ? categoriaVal
+                                          : 'De equipo',
                                   decoration: _inputDecoration(Icons.category),
                                   items: _categories
-                                      .where((c) => c != 'Todas las disciplinas')
+                                      .where(
+                                          (c) => c != 'Todas las disciplinas')
                                       .map((cat) => DropdownMenuItem(
                                             value: cat,
                                             child: Text(cat,
@@ -349,12 +447,13 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                   if (rol.contains('entrenador') ||
                                       rol.contains('profesor') ||
                                       rol.contains('maestro')) {
-                                    String nombreFinal = (uData['nombreApellido'] ??
-                                            uData['nombreCompleto'] ??
-                                            uData['nombre'] ??
-                                            '')
-                                        .toString()
-                                        .trim();
+                                    String nombreFinal =
+                                        (uData['nombreApellido'] ??
+                                                uData['nombreCompleto'] ??
+                                                uData['nombre'] ??
+                                                '')
+                                            .toString()
+                                            .trim();
 
                                     if (nombreFinal.isEmpty) {
                                       nombreFinal = (uData['correo'] ??
@@ -387,8 +486,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                                           ? entrenadores.first
                                           : null);
 
-                              // El dropdown muestra este valor por defecto, así que
-                              // también debe guardarse (si no, se guarda "Sin Entrenador").
                               entrenadorVal ??= selectedItem;
 
                               return DropdownButtonFormField<String>(
@@ -549,41 +646,210 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                             ),
                           ),
                         ),
-                      const SizedBox(height: 12),
-                      _buildFormField(
-                        label: 'URL Imagen Promocional',
-                        controller: imageCtrl,
-                        hint: 'https://images.unsplash.com/...',
-                        icon: Icons.image_outlined,
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: orangePrimary,
-                            side: const BorderSide(color: orangePrimary),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(height: 16),
+
+                      // SECCIÓN DE IMAGEN PROMOCIONAL (COMPUTADORA O URL)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            useUrlMode
+                                ? 'Imagen Promocional (URL / Buscador)'
+                                : 'Imagen Promocional (Desde computadora)',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: blueDark,
+                            ),
                           ),
-                          icon: const Icon(Icons.image_search, size: 18),
-                          label: const Text('Buscar imagen'),
-                          onPressed: () async {
-                            final url = await showImageSearchDialog(ctx,
-                                inicial: nombreCtrl.text.trim());
-                            if (url != null) {
-                              setDialogState(() => imageCtrl.text = url);
-                            }
-                          },
-                        ),
+                          TextButton(
+                            onPressed: isSaving
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      useUrlMode = !useUrlMode;
+                                    });
+                                  },
+                            child: Text(
+                              useUrlMode
+                                  ? 'Subir desde computadora'
+                                  : 'Usar URL / Buscar imagen',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: orangePrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 6),
+
+                      if (!useUrlMode)
+                        InkWell(
+                          onTap: isSaving ? null : pickFromComputer,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: double.infinity,
+                            height: 185,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F9FA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFCBD5E1),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: pickedBytes != null
+                                ? Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(11),
+                                        child: Image.memory(
+                                          pickedBytes!,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 10,
+                                        right: 10,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                blueDark.withValues(alpha: 0.85),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          child: const Text(
+                                            'Haz clic para cambiar la imagen',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : existingImageUrl.isNotEmpty
+                                    ? Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(11),
+                                            child: _buildImageFromSource(
+                                              existingImageUrl,
+                                              height: 185,
+                                            ),
+                                          ),
+                                          Positioned(
+                                            bottom: 10,
+                                            right: 10,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: blueDark.withValues(
+                                                    alpha: 0.85),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: const Text(
+                                                'Imagen actual • Clic para subir otra',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.cloud_upload_outlined,
+                                              size: 38, color: orangePrimary),
+                                          SizedBox(height: 8),
+                                          Text(
+                                            'Haz clic para subir una imagen desde tu computadora',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: blueDark,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Formatos JPG o PNG',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey),
+                                          ),
+                                        ],
+                                      ),
+                          ),
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: imageCtrl,
+                              style: const TextStyle(
+                                  fontSize: 13, color: blueDark),
+                              decoration: _inputDecoration(
+                                Icons.image_outlined,
+                                hint: 'https://images.unsplash.com/...',
+                              ),
+                              onChanged: (_) {
+                                setDialogState(() {
+                                  pickedBytes = null;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: orangePrimary,
+                                  side: const BorderSide(color: orangePrimary),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.image_search, size: 18),
+                                label: const Text('Buscar imagen'),
+                                onPressed: () async {
+                                  final url = await showImageSearchDialog(ctx,
+                                      inicial: nombreCtrl.text.trim());
+                                  if (url != null) {
+                                    setDialogState(() {
+                                      imageCtrl.text = url;
+                                      pickedBytes = null;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(ctx),
+                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
                   child: const Text('Cancelar',
                       style: TextStyle(color: Colors.grey)),
                 ),
@@ -596,179 +862,227 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 12),
                   ),
-                  onPressed: () async {
-                    if (nombreCtrl.text.trim().isEmpty) return;
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (nombreCtrl.text.trim().isEmpty) return;
 
-                    // El precio de cada disciplina debe ser de al menos 50 USD.
-                    final double? precio = double.tryParse(
-                        precioCtrl.text.trim().replaceAll(',', '.'));
-                    if (precio == null || precio < kPrecioMinimo) {
-                      setDialogState(() => precioError =
-                          'El precio debe ser un número de al menos ${formatPrecio(kPrecioMinimo)} USD.');
-                      return;
-                    }
-                    if (precioError != null) {
-                      setDialogState(() => precioError = null);
-                    }
+                          // El precio de cada disciplina debe ser de al menos 50 USD.
+                          final double? precio = double.tryParse(
+                              precioCtrl.text.trim().replaceAll(',', '.'));
+                          if (precio == null || precio < kPrecioMinimo) {
+                            setDialogState(() => precioError =
+                                'El precio debe ser un número de al menos ${formatPrecio(kPrecioMinimo)} USD.');
+                            return;
+                          }
+                          if (precioError != null) {
+                            setDialogState(() => precioError = null);
+                          }
 
-                    // CUPO MÁXIMO: al menos 1 y nunca menor que los inscritos
-                    // activos que ya tiene la disciplina.
-                    final int cupoNuevo =
-                        int.tryParse(cupoMaxCtrl.text.trim()) ?? 0;
-                    if (cupoNuevo < 1) {
-                      setDialogState(() =>
-                          cupoError = 'El cupo máximo debe ser al menos 1.');
-                      return;
-                    }
-                    if (isEditing) {
-                      final activos = await _contarInscritosActivos(doc.id);
-                      if (!ctx.mounted) return;
-                      if (cupoNuevo < activos) {
-                        setDialogState(() => cupoError =
-                            'Hay $activos inscritos activos: el cupo no puede ser menor.');
-                        return;
-                      }
-                    }
-                    if (cupoError != null) {
-                      setDialogState(() => cupoError = null);
-                    }
+                          // CUPO MÁXIMO: al menos 1 y nunca menor que los inscritos activos.
+                          final int cupoNuevo =
+                              int.tryParse(cupoMaxCtrl.text.trim()) ?? 0;
+                          if (cupoNuevo < 1) {
+                            setDialogState(() => cupoError =
+                                'El cupo máximo debe ser al menos 1.');
+                            return;
+                          }
+                          if (isEditing) {
+                            final activos =
+                                await _contarInscritosActivos(doc.id);
+                            if (!ctx.mounted) return;
+                            if (cupoNuevo < activos) {
+                              setDialogState(() => cupoError =
+                                  'Hay $activos inscritos activos: el cupo no puede ser menor.');
+                              return;
+                            }
+                          }
+                          if (cupoError != null) {
+                            setDialogState(() => cupoError = null);
+                          }
 
-                    // HORARIO: si es disciplina nueva (o el admin tocó días/horas)
-                    // se exige día(s) + hora de inicio + hora de fin válidas.
-                    // Si edita una disciplina antigua sin tocar el horario,
-                    // se conserva el texto que ya tenía.
-                    final bool tocoHorario = diasSel.isNotEmpty ||
-                        horaIni != null ||
-                        horaFin != null;
-                    final bool horarioEstructurado =
-                        tocoHorario || !isEditing || horarioPrevio.isEmpty;
-                    String horarioTexto = horarioPrevio;
-                    final diasOrdenados =
-                        _diasSemana.where(diasSel.contains).toList();
+                          // HORARIO
+                          final bool tocoHorario = diasSel.isNotEmpty ||
+                              horaIni != null ||
+                              horaFin != null;
+                          final bool horarioEstructurado = tocoHorario ||
+                              !isEditing ||
+                              horarioPrevio.isEmpty;
+                          String horarioTexto = horarioPrevio;
+                          final diasOrdenados =
+                              _diasSemana.where(diasSel.contains).toList();
 
-                    if (horarioEstructurado) {
-                      if (diasSel.isEmpty || horaIni == null || horaFin == null) {
-                        setDialogState(() => horarioError =
-                            'Elige al menos un día, la hora de inicio y la hora de fin.');
-                        return;
-                      }
-                      if (_aMinutos(horaFin!) <= _aMinutos(horaIni!)) {
-                        setDialogState(() => horarioError =
-                            'La hora de fin debe ser posterior a la hora de inicio.');
-                        return;
-                      }
-                      horarioTexto =
-                          '${diasOrdenados.join(' / ')} · ${_fmtHora(horaIni!)} - ${_fmtHora(horaFin!)}';
+                          if (horarioEstructurado) {
+                            if (diasSel.isEmpty ||
+                                horaIni == null ||
+                                horaFin == null) {
+                              setDialogState(() => horarioError =
+                                  'Elige al menos un día, la hora de inicio y la hora de fin.');
+                              return;
+                            }
+                            if (_aMinutos(horaFin!) <= _aMinutos(horaIni!)) {
+                              setDialogState(() => horarioError =
+                                  'La hora de fin debe ser posterior a la hora de inicio.');
+                              return;
+                            }
+                            horarioTexto =
+                                '${diasOrdenados.join(' / ')} · ${_fmtHora(horaIni!)} - ${_fmtHora(horaFin!)}';
 
-                      // AVISO DE CHOQUE DE HORARIOS (mismo lugar o mismo entrenador)
-                      final choques = await _buscarChoques(
-                        excluirId: doc?.id,
-                        lugar: lugarCtrl.text.trim(),
-                        entrenador: entrenadorVal,
-                        dias: diasSel,
-                        inicio: horaIni!,
-                        fin: horaFin!,
-                      );
-                      if (!ctx.mounted) return;
-                      if (choques.isNotEmpty) {
-                        final guardarIgual = await showDialog<bool>(
-                          context: ctx,
-                          builder: (c2) => AlertDialog(
-                            title: const Text('Posible choque de horarios'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: choques
-                                  .map((a) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 6),
-                                        child: Text('• $a'),
-                                      ))
-                                  .toList(),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(c2, false),
-                                child: const Text('Corregir horario'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(c2, true),
-                                child: const Text('Guardar de todos modos'),
-                              ),
-                            ],
+                            final choques = await _buscarChoques(
+                              excluirId: doc?.id,
+                              lugar: lugarCtrl.text.trim(),
+                              entrenador: entrenadorVal,
+                              dias: diasSel,
+                              inicio: horaIni!,
+                              fin: horaFin!,
+                            );
+                            if (!ctx.mounted) return;
+                            if (choques.isNotEmpty) {
+                              final guardarIgual = await showDialog<bool>(
+                                context: ctx,
+                                builder: (c2) => AlertDialog(
+                                  title:
+                                      const Text('Posible choque de horarios'),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: choques
+                                        .map((a) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                  bottom: 6),
+                                              child: Text('• $a'),
+                                            ))
+                                        .toList(),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c2, false),
+                                      child: const Text('Corregir horario'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(c2, true),
+                                      child:
+                                          const Text('Guardar de todos modos'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (guardarIgual != true) return;
+                            }
+                          }
+
+                          setDialogState(() => isSaving = true);
+
+                          try {
+                            // SUBIR O DETERMINAR IMAGEN FINAL
+                            String finalImageUrl;
+                            if (!useUrlMode && pickedBytes != null) {
+                              finalImageUrl = await _uploadDisciplineBytes(
+                                  pickedBytes!, pickedFileName);
+                            } else if (imageCtrl.text.trim().isNotEmpty) {
+                              finalImageUrl = imageCtrl.text.trim();
+                            } else if (existingImageUrl.isNotEmpty) {
+                              finalImageUrl = existingImageUrl;
+                            } else {
+                              finalImageUrl =
+                                  'https://images.unsplash.com/photo-1517649763962-0c623266200a?auto=format&fit=crop&w=800&q=80';
+                            }
+
+                            // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO
+                            String selectedEntrenadorUid = '';
+                            if (entrenadorVal != null &&
+                                entrenadorVal != 'Sin Entrenador') {
+                              final userQuery = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .get();
+
+                              for (var uDoc in userQuery.docs) {
+                                final uData = uDoc.data();
+                                final String fullName =
+                                    (uData['nombreApellido'] ??
+                                            uData['nombreCompleto'] ??
+                                            uData['nombre'] ??
+                                            '')
+                                        .toString()
+                                        .trim();
+                                final String emailName =
+                                    (uData['correo'] ?? uData['email'] ?? '')
+                                        .toString()
+                                        .trim();
+
+                                if (fullName == entrenadorVal ||
+                                    emailName == entrenadorVal) {
+                                  selectedEntrenadorUid = uDoc.id;
+                                  break;
+                                }
+                              }
+                            }
+
+                            final payload = {
+                              'codigo': codigoCtrl.text.trim().toUpperCase(),
+                              'nombre': nombreCtrl.text.trim(),
+                              'cupoMaximo':
+                                  int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
+                              'cuposMaximos':
+                                  int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
+                              'horario': horarioTexto,
+                              if (horarioEstructurado) ...{
+                                'horarioDias': diasOrdenados,
+                                'horaInicio': _hhmm(horaIni!),
+                                'horaFin': _hhmm(horaFin!),
+                              },
+                              'lugar': lugarCtrl.text.trim(),
+                              'precio': precio,
+                              'moneda': 'USD',
+                              'entrenador': entrenadorVal ?? 'Sin Entrenador',
+                              'entrenadorUid': selectedEntrenadorUid,
+                              'categoria': categoriaVal,
+                              'estado': estadoVal,
+                              'imageUrl': finalImageUrl,
+                              'actualizadoEn': FieldValue.serverTimestamp(),
+                            };
+
+                            if (isEditing) {
+                              await FirebaseFirestore.instance
+                                  .collection('deportes')
+                                  .doc(doc.id)
+                                  .update(payload);
+                            } else {
+                              payload['cuposInscritos'] = 0;
+                              await FirebaseFirestore.instance
+                                  .collection('deportes')
+                                  .add(payload);
+                            }
+
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          } catch (e) {
+                            setDialogState(() => isSaving = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al guardar: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        );
-                        if (guardarIgual != true) return;
-                      }
-                    }
-
-                    // BUSCAR EL UID DEL ENTRENADOR SELECCIONADO PARA EVITAR DESVINCULACIONES
-                    String selectedEntrenadorUid = '';
-                    if (entrenadorVal != null && entrenadorVal != 'Sin Entrenador') {
-                      final userQuery = await FirebaseFirestore.instance
-                          .collection('users')
-                          .get();
-                      
-                      for (var uDoc in userQuery.docs) {
-                        final uData = uDoc.data();
-                        final String fullName = (uData['nombreApellido'] ??
-                                uData['nombreCompleto'] ??
-                                uData['nombre'] ?? '')
-                            .toString()
-                            .trim();
-                        final String emailName = (uData['correo'] ?? uData['email'] ?? '')
-                            .toString()
-                            .trim();
-
-                        if (fullName == entrenadorVal || emailName == entrenadorVal) {
-                          selectedEntrenadorUid = uDoc.id;
-                          break;
-                        }
-                      }
-                    }
-
-                    final payload = {
-                      'codigo': codigoCtrl.text.trim().toUpperCase(),
-                      'nombre': nombreCtrl.text.trim(),
-                      'cupoMaximo': int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
-                      'cuposMaximos':
-                          int.tryParse(cupoMaxCtrl.text.trim()) ?? 20,
-                      'horario': horarioTexto,
-                      if (horarioEstructurado) ...{
-                        'horarioDias': diasOrdenados,
-                        'horaInicio': _hhmm(horaIni!),
-                        'horaFin': _hhmm(horaFin!),
-                      },
-                      'lugar': lugarCtrl.text.trim(),
-                      'precio': precio,
-                      'moneda': 'USD',
-                      'entrenador': entrenadorVal ?? 'Sin Entrenador',
-                      'entrenadorUid': selectedEntrenadorUid,
-                      'categoria': categoriaVal,
-                      'estado': estadoVal,
-                      'imageUrl': imageCtrl.text.trim().isEmpty
-                          ? 'https://images.unsplash.com/photo-1517649763962-0c623266200a?auto=format&fit=crop&w=800&q=80'
-                          : imageCtrl.text.trim(),
-                      'actualizadoEn': FieldValue.serverTimestamp(),
-                    };
-
-                    if (isEditing) {
-                      await FirebaseFirestore.instance
-                          .collection('deportes')
-                          .doc(doc.id)
-                          .update(payload);
-                    } else {
-                      payload['cuposInscritos'] = 0;
-                      await FirebaseFirestore.instance
-                          .collection('deportes')
-                          .add(payload);
-                    }
-
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                  icon: const Icon(Icons.save, size: 18),
+                        )
+                      : const Icon(Icons.save, size: 18),
                   label: Text(
-                      isEditing ? 'Guardar Cambios' : 'Crear Oferta'),
+                    isSaving
+                        ? 'Guardando...'
+                        : (isEditing ? 'Guardar Cambios' : 'Crear Oferta'),
+                  ),
                 ),
               ],
             );
@@ -778,8 +1092,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     );
   }
 
-  /// Cuenta las inscripciones activas (no canceladas) de una disciplina,
-  /// leyendo la colección `inscripciones` (más fiable que el contador guardado).
+  /// Cuenta las inscripciones activas (no canceladas) de una disciplina.
   Future<int> _contarInscritosActivos(String deporteId) async {
     final snap = await FirebaseFirestore.instance
         .collection('inscripciones')
@@ -791,8 +1104,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   }
 
   Future<void> _deleteDiscipline(String docId, String nombre) async {
-    // No se puede eliminar una disciplina que todavía tiene estudiantes
-    // inscritos: sus inscripciones quedarían apuntando a algo que no existe.
     final activos = await _contarInscritosActivos(docId);
     if (!mounted) return;
     if (activos > 0) {
@@ -895,7 +1206,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
             ],
           ),
           const SizedBox(height: 28),
-
           SizedBox(
             height: 46,
             child: TextField(
@@ -918,7 +1228,6 @@ class _AdminSportsViewState extends State<AdminSportsView> {
             ),
           ),
           const SizedBox(height: 18),
-
           StreamBuilder<QuerySnapshot>(
             stream:
                 FirebaseFirestore.instance.collection('deportes').snapshots(),
@@ -1033,16 +1342,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
               ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(15)),
-                child: imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        height: 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            _cardFallbackHeader(),
-                      )
-                    : _cardFallbackHeader(),
+                child: _buildImageFromSource(imageUrl, height: 140),
               ),
               Positioned(
                 top: 10,
@@ -1174,9 +1474,10 @@ class _AdminSportsViewState extends State<AdminSportsView> {
     );
   }
 
-  Widget _cardFallbackHeader() {
+  Widget _cardFallbackHeader({double height = 140}) {
     return Container(
-      height: 140,
+      height: height,
+      width: double.infinity,
       color: blueDark,
       child: const Center(
         child: Icon(Icons.sports, color: Colors.white, size: 40),

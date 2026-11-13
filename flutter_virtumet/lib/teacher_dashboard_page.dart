@@ -7,6 +7,7 @@ import 'teacher_profile_page.dart';
 import 'teacher_reviews_view.dart';
 import 'student_announcements_view.dart';
 import 'aviso_audiencia.dart';
+import 'community_view.dart';
 
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -18,7 +19,7 @@ class TeacherDashboardPage extends StatefulWidget {
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  int _selectedIndex = 0; // 0: Inicio / Dashboard principal, 4: Mis Reseñas
+  int _selectedIndex = 0; // 0: Inicio, 1: Avisos, 2: Comunidad, 3: Mis Disciplinas, 4: Mis Reseñas
   String _searchQuery = '';
 
   static const Color blueDark = Color(0xFF0F2C59);
@@ -205,9 +206,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
                             if (_selectedIndex == 4)
                               const TeacherReviewsView()
+                            else if (_selectedIndex == 3)
+                              _buildMyDisciplinesView(
+                                  mySportsDocs, completedSportIds)
+                            else if (_selectedIndex == 2)
+                              const CommunityView(userRole: 'teacher')
                             else if (_selectedIndex == 1)
-                              // Pestaña Anuncios: avisos activos del admin
-                              // dirigidos a entrenadores (o a todos)
                               const StudentAnnouncementsView(
                                   audiencia: 'Entrenadores')
                             else
@@ -281,6 +285,116 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  Widget _buildMyDisciplinesView(
+      List<QueryDocumentSnapshot> mySportsDocs, Set<String> completedSportIds) {
+    final filteredSportsDocs = mySportsDocs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final name = (data['nombre'] ?? '').toString().toLowerCase();
+      final location = (data['lugar'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery) || location.contains(_searchQuery);
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 32.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mis Disciplinas Asignadas',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: blueDark,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Gestiona tus grupos deportivos y registra la asistencia de tus atletas',
+                    style: TextStyle(fontSize: 14, color: textGrey),
+                  ),
+                ],
+              ),
+              SizedBox(
+                width: 240,
+                height: 42,
+                child: TextField(
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.toLowerCase().trim();
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Buscar disciplina o lugar...',
+                    hintStyle: const TextStyle(fontSize: 12, color: textGrey),
+                    prefixIcon:
+                        const Icon(Icons.search, size: 18, color: textGrey),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (filteredSportsDocs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+              decoration: cardDecoration,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sports_outlined,
+                      size: 48, color: blueDark.withValues(alpha: 0.4)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No tienes disciplinas asignadas actualmente en tu cuenta.',
+                    style: TextStyle(
+                      color: blueDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...filteredSportsDocs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final String deporteId = doc.id;
+              final String nombre = data['nombre'] ?? 'Deporte';
+              final String horario = data['horario'] ?? 'Por definir';
+              final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
+              final String imageUrl = (data['imageUrl'] ?? '').toString();
+              final int inscritos = (data['cuposInscritos'] ?? 0) as int;
+              final bool isCompleted = completedSportIds.contains(deporteId);
+
+              return _sessionCard(
+                deporteId,
+                nombre,
+                horario,
+                lugar,
+                imageUrl,
+                inscritos,
+                isCompleted,
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTopNavigationBar(
       BuildContext context, String userId, String nombre, String photoUrl) {
     return Container(
@@ -314,15 +428,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const SizedBox(width: 36),
 
           _navLink('Inicio', targetIndex: 0),
-          _navLink('Mis Disciplinas', onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const TeacherSportsPage(),
-              ),
-            );
-          }),
-          _navLink('Anuncios', targetIndex: 1),
+          _navLink('Mis Disciplinas', targetIndex: 3),
+          _navLink('Avisos', targetIndex: 1),
           _navLink('Comunidad', targetIndex: 2),
           _navLink('Mis Reseñas', targetIndex: 4),
 
@@ -770,7 +877,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 final docs = avisosSnap.data!.docs;
                 for (var doc in docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  // Solo los avisos dirigidos a entrenadores (o a todos)
                   if (!avisoDirigidoA(data, 'Entrenadores')) continue;
                   final titulo = data['titulo'] ?? 'Aviso';
                   final mensaje = data['mensaje'] ?? '';
@@ -796,6 +902,26 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     comunicados.take(4).map((a) => _alertItem(a)).toList(),
               );
             },
+          ),
+          const SizedBox(height: 16),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1;
+                });
+              },
+              child: const Text(
+                'VER TODOS LOS AVISOS >',
+                style: TextStyle(
+                  color: orangePrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -894,222 +1020,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Text('© 2026 Samán Deportivo · UNIMET',
             style: TextStyle(color: textGrey, fontSize: 12)),
-      ),
-    );
-  }
-}
-
-class TeacherSportsPage extends StatelessWidget {
-  const TeacherSportsPage({super.key});
-
-  static const Color orangePrimary = Color(0xFFFF5500);
-  static const Color blueDark = Color(0xFF0F2C59);
-  static const Color bgLight = Color(0xFFF4F6F9);
-
-  @override
-  Widget build(BuildContext context) {
-    final User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      return const Scaffold(
-        body: Center(child: Text('Sesión no iniciada.')),
-      );
-    }
-
-    final String userId = currentUser.uid;
-
-    return Scaffold(
-      backgroundColor: bgLight,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: blueDark),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'MIS DISCIPLINAS ASIGNADAS',
-          style: TextStyle(
-            color: blueDark,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .snapshots(),
-        builder: (context, userSnapshot) {
-          final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
-          final String rawNombre = userData?['nombreApellido'] ??
-              userData?['nombreCompleto'] ??
-              userData?['nombre'] ??
-              currentUser.displayName ??
-              '';
-          final String nombreUsuario = rawNombre.trim().toLowerCase();
-
-          return StreamBuilder<QuerySnapshot>(
-            stream:
-                FirebaseFirestore.instance.collection('deportes').snapshots(),
-            builder: (context, sportsSnapshot) {
-              if (sportsSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: orangePrimary),
-                );
-              }
-
-              final allDocs = sportsSnapshot.data?.docs ?? [];
-
-              final mySportsDocs = allDocs.where((doc) {
-                final sData = doc.data() as Map<String, dynamic>;
-                final String entUid = (sData['entrenadorUid'] ??
-                        sData['entrenadorId'] ??
-                        '')
-                    .toString()
-                    .trim();
-                final String entNombre =
-                    (sData['entrenador'] ?? '').toString().trim().toLowerCase();
-
-                return entUid == userId ||
-                    (nombreUsuario.isNotEmpty && entNombre == nombreUsuario);
-              }).toList();
-
-              if (mySportsDocs.isEmpty) {
-                return Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(30),
-                    padding: const EdgeInsets.all(30),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.sports_outlined,
-                            size: 48, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text(
-                          'No tienes disciplinas asignadas actualmente en tu cuenta.',
-                          style: TextStyle(
-                            color: blueDark,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: mySportsDocs.length,
-                itemBuilder: (context, index) {
-                  final doc = mySportsDocs[index];
-                  final data = doc.data() as Map<String, dynamic>;
-
-                  final String deporteId = doc.id;
-                  final String nombre = data['nombre'] ?? 'Deporte';
-                  final String horario = data['horario'] ?? 'Por definir';
-                  final String lugar = data['lugar'] ?? 'Instalaciones UNIMET';
-                  final String imageUrl = (data['imageUrl'] ?? '').toString();
-                  final int inscritos = (data['cuposInscritos'] ?? 0) as int;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                    ),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                            color: orangePrimary.withValues(alpha: 0.1),
-                            child: imageUrl.isNotEmpty
-                                ? Image.network(
-                                    imageUrl,
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.sports,
-                                        color: orangePrimary,
-                                        size: 24),
-                                  )
-                                : const Icon(Icons.sports,
-                                    color: orangePrimary, size: 24),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                nombre,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: blueDark,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$horario  •  $lugar',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.black54),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '$inscritos Atletas Inscritos',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: orangePrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: orangePrimary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => AttendancePage(
-                                  deporteId: deporteId,
-                                  deporteNombre: nombre,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text('PASAR ASISTENCIA'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
       ),
     );
   }
