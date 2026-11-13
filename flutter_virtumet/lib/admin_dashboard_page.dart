@@ -10,6 +10,7 @@ import 'admin_events_view.dart';
 import 'admin_reviews_view.dart';
 import 'admin_announcements_view.dart';
 import 'community_view.dart';
+import 'admin_support_view.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -31,6 +32,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // 6: Reseñas (AdminReviewsView)
   // 7: Avisos (AdminAnnouncementsView)
   // 8: Comunidad (CommunityView)
+  // 9: Soporte (AdminSupportView)
   int _selectedIndex = 0;
   String _searchQuery = '';
 
@@ -77,6 +79,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const AdminAnnouncementsView(),
             ] else if (_selectedIndex == 8) ...[
               const CommunityView(userRole: 'admin'),
+            ] else if (_selectedIndex == 9) ...[
+              const AdminSupportView(),
             ] else ...[
               _buildHeroBanner(nombreAdmin),
               Padding(
@@ -173,6 +177,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navLink('Reseñas', targetIndex: 6),
           _navLink('Avisos', targetIndex: 7),
           _navLink('Comunidad', targetIndex: 8),
+          _soporteNavLink(),
           const Spacer(),
           Row(
             children: [
@@ -210,6 +215,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // Pestaña "Soporte" con un globo rojo que muestra cuántas consultas
+  // siguen pendientes de respuesta.
+  Widget _soporteNavLink() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('soporte_consultas')
+          .where('estado', isEqualTo: 'Pendiente')
+          .snapshots(),
+      builder: (context, snap) {
+        final int n = snap.data?.docs.length ?? 0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _navLink('Soporte', targetIndex: 9),
+            if (n > 0)
+              Positioned(
+                right: 0,
+                top: -6,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$n',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 

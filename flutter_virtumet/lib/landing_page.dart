@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'registration_page.dart';
 import 'landing_catalog_section.dart';
+import 'faq_section.dart';
+import 'support_chat.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -20,6 +22,7 @@ class _LandingPageState extends State<LandingPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _catalogKey = GlobalKey();
   final GlobalKey _servicesKey = GlobalKey();
+  final GlobalKey<FaqSectionState> _faqKey = GlobalKey<FaqSectionState>();
 
   // Regresa al inicio superior de la página
   void _scrollToTop() {
@@ -54,6 +57,22 @@ class _LandingPageState extends State<LandingPage> {
     }
   }
 
+  // Desplaza la página hasta Preguntas Frecuentes
+  void _scrollToFaq() {
+    // Primero se despliega la sección y, ya con su tamaño final, se hace el scroll
+    _faqKey.currentState?.abrir();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _faqKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -72,6 +91,7 @@ class _LandingPageState extends State<LandingPage> {
             _Navbar(
               onInicio: _scrollToTop,
               onServicios: _scrollToServices,
+              onPreguntas: _scrollToFaq,
             ),
 
             // 2. Banner Principal (Hero)
@@ -92,6 +112,9 @@ class _LandingPageState extends State<LandingPage> {
               child: const _TechGridSection(),
             ),
 
+            // 5.1 Preguntas Frecuentes (interactivas)
+            FaqSection(key: _faqKey),
+
             // 6. Banner CTA
             _CtaBannerSection(onExplorarCatalogo: _scrollToCatalog),
 
@@ -103,6 +126,7 @@ class _LandingPageState extends State<LandingPage> {
               onInicio: _scrollToTop,
               onServicios: _scrollToServices,
               onCatalogo: _scrollToCatalog,
+              onPreguntas: _scrollToFaq,
             ),
           ],
         ),
@@ -117,10 +141,12 @@ class _LandingPageState extends State<LandingPage> {
 class _Navbar extends StatelessWidget {
   final VoidCallback onInicio;
   final VoidCallback onServicios;
+  final VoidCallback onPreguntas;
 
   const _Navbar({
     required this.onInicio,
     required this.onServicios,
+    required this.onPreguntas,
   });
 
   @override
@@ -151,6 +177,8 @@ class _Navbar extends StatelessWidget {
 
           _navLink('Inicio', onTap: onInicio),
           _navLink('Servicios', onTap: onServicios),
+          _navLink('Preguntas', onTap: onPreguntas),
+          _navLink('Soporte', onTap: () => showSupportChat(context)),
 
           const SizedBox(width: 30),
 
@@ -678,11 +706,13 @@ class _FooterSection extends StatelessWidget {
   final VoidCallback onInicio;
   final VoidCallback onServicios;
   final VoidCallback onCatalogo;
+  final VoidCallback onPreguntas;
 
   const _FooterSection({
     required this.onInicio,
     required this.onServicios,
     required this.onCatalogo,
+    required this.onPreguntas,
   });
 
   @override
@@ -737,8 +767,8 @@ class _FooterSection extends StatelessWidget {
                   children: [
                     const Text('ASISTENCIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
                     const SizedBox(height: 12),
-                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Soporte', style: TextStyle(color: Colors.white54, fontSize: 13))),
-                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Preguntas Frecuentes', style: TextStyle(color: Colors.white54, fontSize: 13))),
+                    InkWell(onTap: () => showSupportChat(context), child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Soporte', style: TextStyle(color: Colors.white54, fontSize: 13)))),
+                    InkWell(onTap: onPreguntas, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Preguntas Frecuentes', style: TextStyle(color: Colors.white54, fontSize: 13)))),
                     const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Contacto', style: TextStyle(color: Colors.white54, fontSize: 13))),
                   ],
                 ),

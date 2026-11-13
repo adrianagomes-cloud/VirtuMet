@@ -32,6 +32,137 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // RECUPERAR CONTRASEÑA
+  // Envía el correo oficial de Firebase con un enlace para elegir una clave
+  // nueva. La app nunca ve ni guarda la contraseña.
+  // ---------------------------------------------------------------------------
+  Future<void> _mostrarRecuperarClave() async {
+    final correoCtrl = TextEditingController(text: _emailController.text.trim());
+    bool enviando = false;
+    bool enviado = false;
+    String? error;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> enviar() async {
+            final correo = correoCtrl.text.trim();
+            if (correo.isEmpty || !correo.contains('@') || !correo.contains('.')) {
+              setDialogState(() => error = 'Escribe un correo válido.');
+              return;
+            }
+            setDialogState(() {
+              enviando = true;
+              error = null;
+            });
+            try {
+              await FirebaseAuth.instance.sendPasswordResetEmail(email: correo);
+              setDialogState(() {
+                enviando = false;
+                enviado = true;
+              });
+            } on FirebaseAuthException catch (e) {
+              String msg;
+              switch (e.code) {
+                case 'invalid-email':
+                  msg = 'El correo no tiene un formato válido.';
+                  break;
+                case 'too-many-requests':
+                  msg = 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+                  break;
+                case 'network-request-failed':
+                  msg = 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
+                  break;
+                default:
+                  msg = 'No se pudo enviar el enlace (${e.code}).';
+              }
+              setDialogState(() {
+                enviando = false;
+                error = msg;
+              });
+            } catch (e) {
+              setDialogState(() {
+                enviando = false;
+                error = 'No se pudo enviar el enlace: $e';
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Recuperar contraseña'),
+            content: SizedBox(
+              width: 380,
+              child: enviado
+                  ? const Text(
+                      'Si el correo está registrado, te enviamos un enlace para '
+                      'elegir una contraseña nueva. Puede tardar unos minutos; '
+                      'revisa también la carpeta de spam.',
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Escribe el correo de tu cuenta y te enviaremos un enlace '
+                          'para elegir una contraseña nueva.',
+                          style: TextStyle(fontSize: 13, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: correoCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Correo',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => enviando ? null : enviar(),
+                        ),
+                        if (error != null) ...[
+                          const SizedBox(height: 10),
+                          Text(error!,
+                              style: const TextStyle(
+                                  color: Colors.redAccent, fontSize: 13)),
+                        ],
+                      ],
+                    ),
+            ),
+            actions: enviado
+                ? [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cerrar'),
+                    ),
+                  ]
+                : [
+                    TextButton(
+                      onPressed: enviando ? null : () => Navigator.pop(ctx),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF5500)),
+                      onPressed: enviando ? null : enviar,
+                      child: enviando
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Enviar enlace'),
+                    ),
+                  ],
+          );
+        },
+      ),
+    );
+    correoCtrl.dispose();
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -467,12 +598,18 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   ],
                                 ),
-                                const Text(
-                                  '¿Olvidaste tu contraseña?',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFFF5500),
+                                InkWell(
+                                  onTap: _mostrarRecuperarClave,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 4),
+                                    child: Text(
+                                      '¿Olvidaste tu contraseña?',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFFF5500),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_common.dart';
 import 'ficha_estudiante.dart';
 
@@ -171,7 +172,17 @@ class _StudentRow extends StatelessWidget {
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
             label: const Text('Ver pagos'),
           ),
-          const SizedBox(width: 12),
+          // Envía al estudiante el enlace oficial para elegir una clave nueva
+          IconButton(
+            tooltip: 'Enviar enlace para restablecer contraseña',
+            icon: const Icon(Icons.lock_reset, color: kNavy),
+            onPressed: () => _restablecerClave(
+              context,
+              correo: '${m['correo'] ?? m['email'] ?? ''}',
+              nombre: userDisplayName(m),
+            ),
+          ),
+          const SizedBox(width: 4),
           Text(activo ? 'Activo' : 'Inactivo'),
           Switch(
             value: activo,
@@ -237,6 +248,15 @@ class _TrainerRow extends StatelessWidget {
                   style: const TextStyle(color: Colors.black54, fontSize: 13),
                 ),
               ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Enviar enlace para restablecer contraseña',
+            icon: const Icon(Icons.lock_reset, color: kNavy),
+            onPressed: () => _restablecerClave(
+              context,
+              correo: '${m['correo'] ?? m['email'] ?? ''}',
+              nombre: userDisplayName(m),
             ),
           ),
           Chip(
@@ -400,4 +420,55 @@ Widget _filaPago(Map<String, dynamic> m, double monto, String fecha) {
             style: const TextStyle(color: Colors.black54, fontSize: 12)),
     ],
   );
+}
+
+/// Envía a un usuario el correo oficial de Firebase para elegir una contraseña
+/// nueva. El administrador nunca ve ni define la contraseña: solo dispara el
+/// envío. Solo llega si el correo de la cuenta es un buzón real.
+Future<void> _restablecerClave(
+  BuildContext context, {
+  required String correo,
+  required String nombre,
+}) async {
+  final email = correo.trim();
+  if (email.isEmpty || !email.contains('@')) {
+    showMsg(context, '$nombre no tiene un correo registrado.', error: true);
+    return;
+  }
+  final confirmar = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Restablecer contraseña'),
+      content: Text(
+        'Se enviará a $email un enlace para que $nombre elija una '
+        'contraseña nueva. Solo le llegará si ese correo es real.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: kOrange),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Enviar enlace'),
+        ),
+      ],
+    ),
+  );
+  if (confirmar != true) return;
+  try {
+    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    if (context.mounted) {
+      showMsg(context, 'Enlace enviado a $email.');
+    }
+  } on FirebaseAuthException catch (e) {
+    if (context.mounted) {
+      showMsg(context, 'No se pudo enviar el enlace (${e.code}).', error: true);
+    }
+  } catch (e) {
+    if (context.mounted) {
+      showMsg(context, 'No se pudo enviar el enlace: $e', error: true);
+    }
+  }
 }

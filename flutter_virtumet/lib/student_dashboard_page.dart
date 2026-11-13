@@ -8,6 +8,7 @@ import 'student_review_form_view.dart';
 import 'student_announcements_view.dart';
 import 'aviso_audiencia.dart';
 import 'community_view.dart';
+import 'support_chat.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -835,10 +836,20 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24),
       color: Colors.white,
-      child: const Center(
-        child: Text(
-          '© 2026 Samán Deportivo • UNIMET',
-          style: TextStyle(fontSize: 12, color: textGrey),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton.icon(
+              onPressed: () => showSupportChat(context),
+              icon: const Icon(Icons.support_agent, size: 18),
+              label: const Text('¿Necesitas ayuda? Soporte'),
+            ),
+            const Text(
+              '© 2026 Samán Deportivo • UNIMET',
+              style: TextStyle(fontSize: 12, color: textGrey),
+            ),
+          ],
         ),
       ),
     );
