@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -45,23 +46,30 @@ class _TeacherReviewsViewState extends State<TeacherReviewsView> {
         return Container(
           width: double.infinity,
           color: bgLight,
-          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
+          padding: EdgeInsets.symmetric(
+              horizontal: esCompacto(context) ? margenPagina(context) : 50,
+              vertical: esMovil(context) ? 20 : 30),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Encabezado
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Encabezado (el buscador baja debajo del título en teléfono)
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 14,
+                spacing: 16,
                 children: [
                   Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          const Text(
+                          Text(
                             'Mis Reseñas y Calificaciones',
                             style: TextStyle(
-                              fontSize: 22,
+                              fontSize: esMovil(context) ? 20 : 22,
                               fontWeight: FontWeight.bold,
                               color: blueDark,
                             ),
@@ -95,14 +103,24 @@ class _TeacherReviewsViewState extends State<TeacherReviewsView> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Sincronización en tiempo real de las opiniones publicadas para tus deportes.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                            maxWidth: esMovil(context)
+                                ? MediaQuery.sizeOf(context).width -
+                                    2 * margenPagina(context)
+                                : 600),
+                        child: const Text(
+                          'Sincronización en tiempo real de las opiniones publicadas para tus deportes.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                       ),
                     ],
                   ),
                   SizedBox(
-                    width: 280,
+                    width: esMovil(context)
+                        ? MediaQuery.sizeOf(context).width -
+                            2 * margenPagina(context)
+                        : 280,
                     height: 40,
                     child: TextField(
                       onChanged: (val) {

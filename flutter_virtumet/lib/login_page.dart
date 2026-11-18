@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_page.dart';
+import 'responsive.dart';
 import 'landing_page.dart';
 import 'student_dashboard_page.dart';
 import 'teacher_dashboard_page.dart';
@@ -383,10 +384,10 @@ class _LoginPageState extends State<LoginPage> {
                 color: const Color(0xFFF8F9FA),
                 child: Center(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(esMovil(context) ? 16 : 32),
                     child: Container(
                       constraints: const BoxConstraints(maxWidth: 460),
-                      padding: const EdgeInsets.all(36),
+                      padding: EdgeInsets.all(esMovil(context) ? 20 : 36),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
@@ -570,10 +571,15 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 16),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            // Wrap: en teléfono "¿Olvidaste tu contraseña?" baja a otra
+                            // línea en lugar de desbordarse
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              runSpacing: 8,
                               children: [
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SizedBox(
                                       height: 20,

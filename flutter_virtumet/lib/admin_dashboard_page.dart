@@ -11,6 +11,7 @@ import 'admin_reviews_view.dart';
 import 'admin_announcements_view.dart';
 import 'community_view.dart';
 import 'admin_support_view.dart';
+import 'responsive.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -21,6 +22,7 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Índice de sección activa:
   // 0: Resumen / Inicio
@@ -41,6 +43,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   static const Color navyHeader = Color(0xFF0A192F);
   static const Color bgLight = Color(0xFFF4F6F9);
 
+  // Con menos de 1200 px las 9 pestañas no caben: se usa un menú lateral.
+  bool _esAnchoReducido(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 1200;
+
   Future<void> _handleLogout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -58,7 +64,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final String nombreAdmin = adminEmail.split('@').first.toUpperCase();
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: bgLight,
+      drawer: _esAnchoReducido(context) ? _buildDrawer(adminEmail) : null,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -84,8 +92,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ] else ...[
               _buildHeroBanner(nombreAdmin),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
+                padding: EdgeInsets.symmetric(
+                    horizontal: esCompacto(context) ? margenPagina(context) : 50,
+                    vertical: esMovil(context) ? 20 : 30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -94,6 +103,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final bool isDesktop = constraints.maxWidth > 900;
+                        // En pantallas angostas las tarjetas se apilan en una columna
+                        if (!isDesktop) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildSportsManagementCard(),
+                              const SizedBox(height: 24),
+                              _buildCriticalAlertsCard(),
+                              const SizedBox(height: 24),
+                              _buildUpcomingEventsCard(),
+                              const SizedBox(height: 24),
+                              _buildSystemStatusCard(),
+                            ],
+                          );
+                        }
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -131,7 +155,166 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // Barra compacta: logo, cerrar sesión y botón de menú lateral
+  Widget _buildCompactNavbar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      color: Colors.white,
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 0),
+            child: Image.asset(
+              'lib/assets/Logo.png',
+              height: 40,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Text(
+                'VirtuMet',
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold, color: blueDark),
+              ),
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, size: 22, color: Colors.grey),
+            onPressed: _handleLogout,
+            tooltip: 'Cerrar Sesión',
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu, size: 28, color: blueDark),
+            tooltip: 'Menú',
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Menú lateral con todas las secciones del administrador
+  Widget _buildDrawer(String email) {
+    const secciones = <(String, IconData, int)>[
+      ('Inicio', Icons.home_outlined, 0),
+      ('Disciplinas', Icons.sports_soccer_outlined, 1),
+      ('Usuarios', Icons.people_alt_outlined, 2),
+      ('Fichas e Inscripciones', Icons.assignment_outlined, 3),
+      ('Eventos', Icons.event_outlined, 4),
+      ('Reportes y Avisos', Icons.bar_chart_rounded, 5),
+      ('Reseñas', Icons.star_outline_rounded, 6),
+      ('Avisos', Icons.campaign_outlined, 7),
+      ('Comunidad', Icons.groups_outlined, 8),
+      ('Soporte', Icons.support_agent_outlined, 9),
+    ];
+
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: blueDark.withValues(alpha: 0.08),
+                      border: Border.all(
+                          color: orangePrimary.withValues(alpha: 0.6), width: 1.5),
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_outlined,
+                        size: 22, color: blueDark),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Administrador',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: blueDark)),
+                        Text(email,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final (titulo, icono, indice) in secciones)
+                    ListTile(
+                      selected: _selectedIndex == indice,
+                      selectedTileColor: orangePrimary.withValues(alpha: 0.08),
+                      selectedColor: orangePrimary,
+                      iconColor: blueDark,
+                      textColor: blueDark,
+                      leading: Icon(icono),
+                      title: Text(titulo,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: indice == 9 ? _soporteBadge() : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() => _selectedIndex = indice);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              iconColor: Colors.grey,
+              leading: const Icon(Icons.logout_rounded),
+              title: const Text('Cerrar sesión'),
+              onTap: () {
+                Navigator.pop(context);
+                _handleLogout();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Globo con las consultas de soporte pendientes (para el menú lateral)
+  Widget _soporteBadge() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('soporte_consultas')
+          .where('estado', isEqualTo: 'Pendiente')
+          .snapshots(),
+      builder: (context, snap) {
+        final int n = snap.data?.docs.length ?? 0;
+        if (n == 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.redAccent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text('$n',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold)),
+        );
+      },
+    );
+  }
+
   Widget _buildTopNavbar(BuildContext context, String email) {
+    if (_esAnchoReducido(context)) return _buildCompactNavbar();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
       color: Colors.white,
@@ -294,7 +477,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildHeroBanner(String nombreAdmin) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 48),
+      padding: EdgeInsets.symmetric(
+          horizontal: esCompacto(context) ? margenPagina(context) : 50,
+          vertical: esMovil(context) ? 32 : 48),
       decoration: const BoxDecoration(
         color: navyHeader,
         image: DecorationImage(
@@ -331,12 +516,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           const SizedBox(height: 14),
           Text(
             '¡HOLA DE NUEVO, $nombreAdmin!',
-            style: const TextStyle(
-              fontSize: 32,
+            style: TextStyle(
+              fontSize: esMovil(context) ? 24 : 32,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: 0.5,
-              shadows: [
+              shadows: const [
                 Shadow(
                   offset: Offset(0, 2),
                   blurRadius: 6.0,
@@ -363,7 +548,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
+          // Wrap: en teléfono los botones pasan a dos filas
+          Wrap(
+            spacing: 14,
+            runSpacing: 12,
             children: [
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -384,7 +572,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 14),
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white, width: 1.5),
@@ -496,7 +683,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 230,
+        // En teléfono la tarjeta ocupa todo el ancho disponible
+        width: esMovil(context)
+            ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context)
+            : 230,
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -568,8 +758,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildSportsManagementCard() {
+    final movil = esMovil(context);
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(movil ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -585,10 +776,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Wrap: el buscador baja debajo del título cuando no cabe
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 14,
+            spacing: 16,
             children: [
               const Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -607,7 +803,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ],
               ),
               SizedBox(
-                width: 220,
+                width: movil
+                    ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context) - 32
+                    : 220,
                 height: 40,
                 child: TextField(
                   onChanged: (val) {
@@ -733,84 +931,104 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _sportAdminRow(String nombre, String entrenador, String lugar,
       int atletas, String estado, String imageUrl) {
+    final movil = esMovil(context);
+
+    final miniatura = ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 48,
+        height: 48,
+        color: Colors.white,
+        child: imageUrl.isNotEmpty
+            ? Image.network(
+                imageUrl,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+                ),
+              )
+            : const Center(
+                child: Icon(Icons.sports_soccer, color: blueDark, size: 22),
+              ),
+      ),
+    );
+
+    final datos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          nombre,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: blueDark,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Entrenador: $entrenador  •  $lugar  •  $atletas Atletas inscritos',
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
+    );
+
+    final boton = OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      ),
+      onPressed: () {
+        setState(() => _selectedIndex = 1);
+      },
+      child: const Text(
+        'EDITAR / GESTIONAR',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: blueDark,
+        ),
+      ),
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(movil ? 14 : 18),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F9FA),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 48,
-              height: 48,
-              color: Colors.white,
-              child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child:
-                            Icon(Icons.sports_soccer, color: blueDark, size: 22),
-                      ),
-                    )
-                  : const Center(
-                      child:
-                          Icon(Icons.sports_soccer, color: blueDark, size: 22),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      // En teléfono el botón va debajo de los datos, a todo el ancho
+      child: movil
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  nombre,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: blueDark,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    miniatura,
+                    const SizedBox(width: 14),
+                    Expanded(child: datos),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Entrenador: $entrenador  •  $lugar  •  $atletas Atletas inscritos',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
+                const SizedBox(height: 12),
+                boton,
+              ],
+            )
+          : Row(
+              children: [
+                miniatura,
+                const SizedBox(width: 16),
+                Expanded(child: datos),
+                boton,
               ],
             ),
-          ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            ),
-            onPressed: () {
-              setState(() => _selectedIndex = 1);
-            },
-            child: const Text(
-              'EDITAR / GESTIONAR',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: blueDark,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

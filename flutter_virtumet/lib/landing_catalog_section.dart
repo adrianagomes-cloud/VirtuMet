@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_page.dart';
 import 'precio_utils.dart';
+import 'responsive.dart';
 
 /// Catálogo público de la landing: muestra en tiempo real las disciplinas que
 /// publica el administrador (colección `deportes`), con el mismo diseño de
@@ -34,7 +35,10 @@ class _LandingCatalogSectionState extends State<LandingCatalogSection> {
     return Container(
       width: double.infinity,
       color: const Color(0xFFF8F9FA),
-      padding: const EdgeInsets.symmetric(vertical: 70, horizontal: 40),
+      padding: EdgeInsets.symmetric(
+        vertical: esMovil(context) ? 44 : 70,
+        horizontal: margenPagina(context),
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -50,10 +54,10 @@ class _LandingCatalogSectionState extends State<LandingCatalogSection> {
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Disciplinas disponibles',
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: esMovil(context) ? 24 : 30,
                   fontWeight: FontWeight.w800,
                   color: blueDark,
                 ),
@@ -108,10 +112,12 @@ class _LandingCatalogSectionState extends State<LandingCatalogSection> {
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 400,
                       crossAxisSpacing: 20,
                       mainAxisSpacing: 20,
+                      // En teléfono la tarjeta usa altura fija para evitar huecos vacíos
+                      mainAxisExtent: esMovil(context) ? 450 : null,
                       childAspectRatio: 0.8,
                     ),
                     itemCount: docs.length,
@@ -132,7 +138,9 @@ class _LandingCatalogSectionState extends State<LandingCatalogSection> {
       runSpacing: 12,
       children: [
         SizedBox(
-          width: 420,
+          width: esMovil(context)
+              ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context)
+              : 420,
           height: 46,
           child: TextField(
             onChanged: (v) => setState(() => _query = v.toLowerCase().trim()),

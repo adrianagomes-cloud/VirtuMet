@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_common.dart';
 
@@ -153,7 +154,10 @@ class _Kpi extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 230,
+      // En teléfono la tarjeta ocupa todo el ancho disponible
+      width: esMovil(context)
+          ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context)
+          : 230,
       child: AdminCard(
         child: Row(
           children: [

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -188,6 +189,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
             }
 
             return AlertDialog(
+              insetPadding: margenDialogo(context),
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -310,8 +312,9 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                         const SizedBox(height: 16),
 
                         // SECCIÓN DE IMAGEN (DESDE COMPUTADORA O ENLACE URL)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               useUrlMode
@@ -495,7 +498,8 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                           ),
                         const SizedBox(height: 16),
 
-                        Row(
+                        FilaAdaptable(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
                               child: Column(
@@ -789,26 +793,33 @@ class _AdminEventsViewState extends State<AdminEventsView> {
     return Container(
       width: double.infinity,
       color: AdminEventsView.bgLight,
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 32),
+      padding: EdgeInsets.symmetric(
+          horizontal: esCompacto(context) ? margenPagina(context) : 50,
+          vertical: esMovil(context) ? 20 : 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Wrap: en teléfono el botón de crear baja debajo del título
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 14,
+            spacing: 16,
             children: [
-              const Column(
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Gestión de Eventos y Calendario',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: esMovil(context) ? 20 : 24,
                       fontWeight: FontWeight.bold,
                       color: AdminEventsView.blueDark,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     'Selecciona un día en el calendario para agendar o revisar competencias y actividades.',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
@@ -835,7 +846,8 @@ class _AdminEventsViewState extends State<AdminEventsView> {
           ),
           const SizedBox(height: 24),
 
-          Row(
+          // En teléfono el calendario y la lista de eventos se apilan
+          FilaAdaptable(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(

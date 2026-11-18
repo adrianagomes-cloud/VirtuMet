@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -92,7 +93,8 @@ class _StudentSportsViewState extends State<StudentSportsView> {
             }).toList();
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+              padding: EdgeInsets.symmetric(
+                  horizontal: margenPagina(context), vertical: 30),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -115,7 +117,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                           Text(
                             'Catálogo Deportivo VirtuMet',
                             style: TextStyle(
-                              fontSize: 28,
+                              fontSize: 24,
                               fontWeight: FontWeight.w900,
                               color: blueDark,
                             ),
@@ -164,10 +166,9 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                     },
                   ),
                   const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
+                  Builder(builder: (context) {
+                    final bool movil = esMovil(context);
+                    final Widget campoBusqueda = SizedBox(
                           height: 46,
                           child: TextField(
                             onChanged: (val) {
@@ -197,10 +198,8 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Container(
+                        );
+                    final Widget filtroCategoria = Container(
                         height: 46,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
@@ -211,6 +210,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
+                            isExpanded: esMovil(context),
                             value: _selectedCategory,
                             items: _categories.map((cat) {
                               return DropdownMenuItem(
@@ -227,9 +227,25 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                             },
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      );
+                    // En teléfono el buscador y el filtro se apilan
+                    if (movil) {
+                      return Column(
+                        children: [
+                          campoBusqueda,
+                          const SizedBox(height: 12),
+                          filtroCategoria,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: campoBusqueda),
+                        const SizedBox(width: 16),
+                        filtroCategoria,
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 24),
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
@@ -308,10 +324,13 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                            SliverGridDelegateWithMaxCrossAxisExtent(
                           maxCrossAxisExtent: 400,
                           crossAxisSpacing: 20,
                           mainAxisSpacing: 20,
+                          // En teléfono la tarjeta ocupa todo el ancho: se usa una
+                          // altura fija para que no queden huecos vacíos.
+                          mainAxisExtent: esMovil(context) ? 450 : null,
                           childAspectRatio: 0.75,
                         ),
                         itemCount: filteredSports.length,
@@ -501,7 +520,11 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               ),
                             ),
                           ),
-                          Row(
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: Row(
                             children: [
                               // Botón de Reseñas integrado
                               ElevatedButton.icon(
@@ -569,6 +592,8 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                                 ),
                               ),
                             ],
+                          ),
+                            ),
                           ),
                         ],
                       ),

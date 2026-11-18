@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_common.dart';
+import 'responsive.dart';
 import 'ficha_estudiante.dart';
 
 /// Gestión de usuarios (requisito "Gestión de usuarios"):
@@ -41,7 +42,9 @@ class _AdminUsersViewState extends State<AdminUsersView> {
                 onSelected: (_) => setState(() => _rol = r),
               ),
             SizedBox(
-              width: 280,
+              width: esMovil(context)
+                  ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context)
+                  : 280,
               child: TextField(
                 decoration: InputDecoration(
                   hintText: 'Buscar por nombre, correo o carnet',
@@ -119,70 +122,69 @@ class _StudentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = doc.data() as Map<String, dynamic>;
     final bool activo = (m['estado'] ?? 'Activo') == 'Activo';
-    return AdminCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
+    final movil = esMovil(context);
+
+    const avatar = CircleAvatar(
+      backgroundColor: kNavy,
+      child: Icon(Icons.school_outlined, color: Colors.white),
+    );
+
+    // Tocar al estudiante abre su perfil y su ficha
+    final info = InkWell(
+      onTap: () => mostrarFichaDeEstudiante(
+        context,
+        uid: doc.id,
+        nombre: userDisplayName(m),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            backgroundColor: kNavy,
-            child: Icon(Icons.school_outlined, color: Colors.white),
+          Text(
+            userDisplayName(m),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(width: 12),
-          // Tocar al estudiante abre su perfil y su ficha
-          Expanded(
-            child: InkWell(
-              onTap: () => mostrarFichaDeEstudiante(
-                context,
-                uid: doc.id,
-                nombre: userDisplayName(m),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    userDisplayName(m),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '${m['correo'] ?? ''}  ·  Carnet ${m['carnet'] ?? '—'}  ·  ${m['carrera'] ?? ''}',
-                    style: const TextStyle(color: Colors.black54, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
+          Text(
+            '${m['correo'] ?? ''}  ·  Carnet ${m['carnet'] ?? '—'}  ·  ${m['carrera'] ?? ''}',
+            style: const TextStyle(color: Colors.black54, fontSize: 13),
           ),
-          // Ficha deportiva personal del estudiante (solo lectura)
-          OutlinedButton.icon(
-            onPressed: () => mostrarFichaDeEstudiante(
-              context,
-              uid: doc.id,
-              nombre: userDisplayName(m),
-            ),
-            icon: const Icon(Icons.assignment_ind_outlined, size: 18),
-            label: const Text('Ver ficha'),
-          ),
-          const SizedBox(width: 8),
-          // Historial de pagos del estudiante (inscripciones pagadas)
-          OutlinedButton.icon(
-            onPressed: () => _mostrarPagos(
-              context,
-              uid: doc.id,
-              nombre: userDisplayName(m),
-            ),
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: const Text('Ver pagos'),
-          ),
-          // Envía al estudiante el enlace oficial para elegir una clave nueva
-          IconButton(
-            tooltip: 'Enviar enlace para restablecer contraseña',
-            icon: const Icon(Icons.lock_reset, color: kNavy),
-            onPressed: () => _restablecerClave(
-              context,
-              correo: '${m['correo'] ?? m['email'] ?? ''}',
-              nombre: userDisplayName(m),
-            ),
-          ),
-          const SizedBox(width: 4),
+        ],
+      ),
+    );
+
+    final acciones = <Widget>[
+      // Ficha deportiva personal del estudiante (solo lectura)
+      OutlinedButton.icon(
+        onPressed: () => mostrarFichaDeEstudiante(
+          context,
+          uid: doc.id,
+          nombre: userDisplayName(m),
+        ),
+        icon: const Icon(Icons.assignment_ind_outlined, size: 18),
+        label: const Text('Ver ficha'),
+      ),
+      // Historial de pagos del estudiante (inscripciones pagadas)
+      OutlinedButton.icon(
+        onPressed: () => _mostrarPagos(
+          context,
+          uid: doc.id,
+          nombre: userDisplayName(m),
+        ),
+        icon: const Icon(Icons.receipt_long_outlined, size: 18),
+        label: const Text('Ver pagos'),
+      ),
+      // Envía al estudiante el enlace oficial para elegir una clave nueva
+      IconButton(
+        tooltip: 'Enviar enlace para restablecer contraseña',
+        icon: const Icon(Icons.lock_reset, color: kNavy),
+        onPressed: () => _restablecerClave(
+          context,
+          correo: '${m['correo'] ?? m['email'] ?? ''}',
+          nombre: userDisplayName(m),
+        ),
+      ),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Text(activo ? 'Activo' : 'Inactivo'),
           Switch(
             value: activo,
@@ -200,6 +202,39 @@ class _StudentRow extends StatelessWidget {
           ),
         ],
       ),
+    ];
+
+    return AdminCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      // En teléfono los botones pasan debajo de los datos
+      child: movil
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 12),
+                    Expanded(child: info),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: acciones,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(child: info),
+                for (final a in acciones) ...[a, const SizedBox(width: 8)],
+              ],
+            ),
     );
   }
 }
@@ -226,58 +261,86 @@ class _TrainerRow extends StatelessWidget {
         : estado == 'Rechazado'
             ? Colors.redAccent
             : Colors.orange;
+    final movil = esMovil(context);
+
+    const avatar = CircleAvatar(
+      backgroundColor: kOrange,
+      child: Icon(Icons.sports, color: Colors.white),
+    );
+
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          userDisplayName(m),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text(
+          '${m['correo'] ?? ''}  ·  ${m['disciplinaExperiencia'] ?? ''}  ·  ${m['certificacion'] ?? ''}',
+          style: const TextStyle(color: Colors.black54, fontSize: 13),
+        ),
+      ],
+    );
+
+    final acciones = <Widget>[
+      IconButton(
+        tooltip: 'Enviar enlace para restablecer contraseña',
+        icon: const Icon(Icons.lock_reset, color: kNavy),
+        onPressed: () => _restablecerClave(
+          context,
+          correo: '${m['correo'] ?? m['email'] ?? ''}',
+          nombre: userDisplayName(m),
+        ),
+      ),
+      Chip(
+        label: Text(estado, style: TextStyle(color: color)),
+        side: BorderSide(color: color),
+        backgroundColor: Colors.white,
+      ),
+      if (estado != 'Aprobado')
+        IconButton(
+          tooltip: 'Aprobar',
+          icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+          onPressed: () => _set(context, 'Aprobado'),
+        ),
+      if (estado != 'Rechazado')
+        IconButton(
+          tooltip: 'Rechazar',
+          icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
+          onPressed: () => _set(context, 'Rechazado'),
+        ),
+    ];
+
     return AdminCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            backgroundColor: kOrange,
-            child: Icon(Icons.sports, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: movil
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  userDisplayName(m),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 12),
+                    Expanded(child: info),
+                  ],
                 ),
-                Text(
-                  '${m['correo'] ?? ''}  ·  ${m['disciplinaExperiencia'] ?? ''}  ·  ${m['certificacion'] ?? ''}',
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: acciones,
                 ),
               ],
+            )
+          : Row(
+              children: [
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(child: info),
+                ...acciones,
+              ],
             ),
-          ),
-          IconButton(
-            tooltip: 'Enviar enlace para restablecer contraseña',
-            icon: const Icon(Icons.lock_reset, color: kNavy),
-            onPressed: () => _restablecerClave(
-              context,
-              correo: '${m['correo'] ?? m['email'] ?? ''}',
-              nombre: userDisplayName(m),
-            ),
-          ),
-          Chip(
-            label: Text(estado, style: TextStyle(color: color)),
-            side: BorderSide(color: color),
-            backgroundColor: Colors.white,
-          ),
-          if (estado != 'Aprobado')
-            IconButton(
-              tooltip: 'Aprobar',
-              icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-              onPressed: () => _set(context, 'Aprobado'),
-            ),
-          if (estado != 'Rechazado')
-            IconButton(
-              tooltip: 'Rechazar',
-              icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
-              onPressed: () => _set(context, 'Rechazado'),
-            ),
-        ],
-      ),
     );
   }
 }
@@ -295,6 +358,7 @@ Future<void> _mostrarPagos(
   return showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
+      insetPadding: margenDialogo(context),
       title: Text('Pagos de $nombre'),
       content: SizedBox(
         width: 560,

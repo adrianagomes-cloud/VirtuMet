@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,6 +19,7 @@ class TeacherDashboardPage extends StatefulWidget {
 }
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   int _selectedIndex = 0; // 0: Inicio, 1: Avisos, 2: Comunidad, 3: Mis Disciplinas, 4: Mis Reseñas
@@ -198,7 +200,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     }
 
                     return Scaffold(
+                      key: _scaffoldKey,
                       backgroundColor: bgLight,
+                      drawer: esCompacto(context)
+                          ? _buildDrawer(nombreUsuario, photoUrl)
+                          : null,
                       body: SingleChildScrollView(
                         child: Column(
                           children: [
@@ -221,8 +227,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                 children: [
                                   _buildHeroBanner(primerNombre, sesionesCount),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 40.0, vertical: 32.0),
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: margenPagina(context),
+                                        vertical: esMovil(context) ? 20.0 : 32.0),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -236,6 +243,24 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                           builder: (context, constraints) {
                                             final bool isDesktop =
                                                 constraints.maxWidth > 850;
+                                            // En pantallas angostas todo se apila en una columna
+                                            if (!isDesktop) {
+                                              return Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  _buildSessionsList(
+                                                    mySportsDocs,
+                                                    completedSportIds,
+                                                  ),
+                                                  const SizedBox(height: 24),
+                                                  _buildCriticalAlertsCard(
+                                                      mySportsDocs),
+                                                  const SizedBox(height: 24),
+                                                  _buildUpcomingEventsCard(),
+                                                ],
+                                              );
+                                            }
                                             return Row(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
@@ -295,34 +320,44 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return name.contains(_searchQuery) || location.contains(_searchQuery);
     }).toList();
 
+    final movil = esMovil(context);
+    final anchoUtil = MediaQuery.sizeOf(context).width - 2 * margenPagina(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 32.0),
+      padding: EdgeInsets.symmetric(
+          horizontal: margenPagina(context), vertical: movil ? 20.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Wrap: el buscador baja debajo del título en pantallas angostas
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 14,
+            spacing: 16,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Mis Disciplinas Asignadas',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: blueDark,
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: movil ? anchoUtil : 700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mis Disciplinas Asignadas',
+                      style: TextStyle(
+                        fontSize: movil ? 22 : 26,
+                        fontWeight: FontWeight.bold,
+                        color: blueDark,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Gestiona tus grupos deportivos y registra la asistencia de tus atletas',
-                    style: TextStyle(fontSize: 14, color: textGrey),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Gestiona tus grupos deportivos y registra la asistencia de tus atletas',
+                      style: TextStyle(fontSize: 14, color: textGrey),
+                    ),
+                  ],
+                ),
               ),
               SizedBox(
-                width: 240,
+                width: movil ? anchoUtil : 240,
                 height: 42,
                 child: TextField(
                   onChanged: (val) {
@@ -396,8 +431,171 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  // Barra compacta (teléfono / tablet): logo, avatar y botón de menú
+  Widget _buildCompactNavBar(String nombre, String photoUrl) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 0),
+            child: Image.asset(
+              'lib/assets/Logo.png',
+              height: 36,
+              errorBuilder: (_, __, ___) => const Text('VirtuMet',
+                  style: TextStyle(
+                      color: blueDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18)),
+            ),
+          ),
+          const Spacer(),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TeacherProfilePage()),
+            ),
+            borderRadius: BorderRadius.circular(20),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: orangePrimary.withValues(alpha: 0.2),
+              backgroundImage:
+                  photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+              child: photoUrl.isEmpty
+                  ? Text(_getInitials(nombre),
+                      style: const TextStyle(
+                          color: orangePrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold))
+                  : null,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu, size: 28, color: blueDark),
+            tooltip: 'Menú',
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Menú lateral del entrenador
+  Widget _buildDrawer(String nombre, String photoUrl) {
+    const secciones = <(String, IconData, int)>[
+      ('Inicio', Icons.home_outlined, 0),
+      ('Mis Disciplinas', Icons.sports_soccer_outlined, 3),
+      ('Avisos', Icons.campaign_outlined, 1),
+      ('Comunidad', Icons.groups_outlined, 2),
+      ('Mis Reseñas', Icons.star_outline_rounded, 4),
+    ];
+
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TeacherProfilePage()),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: orangePrimary.withValues(alpha: 0.2),
+                      backgroundImage:
+                          photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                      child: photoUrl.isEmpty
+                          ? Text(_getInitials(nombre),
+                              style: const TextStyle(
+                                  color: orangePrimary,
+                                  fontWeight: FontWeight.bold))
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nombre,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: blueDark)),
+                          const Text('Ver mi perfil',
+                              style:
+                                  TextStyle(fontSize: 12, color: textGrey)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final (titulo, icono, indice) in secciones)
+                    ListTile(
+                      selected: _selectedIndex == indice,
+                      selectedTileColor: orangePrimary.withValues(alpha: 0.08),
+                      selectedColor: orangePrimary,
+                      iconColor: blueDark,
+                      textColor: blueDark,
+                      leading: Icon(icono),
+                      title: Text(titulo,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() => _selectedIndex = indice);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              iconColor: textGrey,
+              leading: const Icon(Icons.support_agent),
+              title: const Text('Soporte'),
+              onTap: () {
+                Navigator.pop(context);
+                showSupportChat(context);
+              },
+            ),
+            ListTile(
+              iconColor: textGrey,
+              leading: const Icon(Icons.logout),
+              title: const Text('Cerrar sesión'),
+              onTap: () {
+                Navigator.pop(context);
+                _handleLogout();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTopNavigationBar(
       BuildContext context, String userId, String nombre, String photoUrl) {
+    if (esCompacto(context)) return _buildCompactNavBar(nombre, photoUrl);
     return Container(
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -533,7 +731,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Widget _buildHeroBanner(String primerNombre, int sesionesCount) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 64),
+      padding: EdgeInsets.symmetric(
+          horizontal: margenPagina(context),
+          vertical: esMovil(context) ? 36 : 64),
       decoration: BoxDecoration(
         color: blueDark,
         image: DecorationImage(
@@ -562,13 +762,16 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           const SizedBox(height: 16),
           Text(
             '¡HOLA DE NUEVO, $primerNombre!',
-            style: const TextStyle(
-                color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: esMovil(context) ? 24 : 36,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             'Tienes $sesionesCount ${sesionesCount == 1 ? 'sesión programada' : 'sesiones programadas'} para hoy en el sistema. Revisa tus atletas y registra tu asistencia.',
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(
+                color: Colors.white, fontSize: esMovil(context) ? 14 : 16),
           ),
         ],
       ),
@@ -581,7 +784,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       builder: (context, eventsSnapshot) {
         final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
 
-        return Row(
+        return FilaAdaptable(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          espacioVertical: 16,
           children: [
             _statCard('TOTAL ATLETAS', totalAtletas.toString().padLeft(2, '0'),
                 Icons.people_outline,
@@ -656,13 +861,19 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return name.contains(_searchQuery) || location.contains(_searchQuery);
     }).toList();
 
+    final anchoUtil =
+        MediaQuery.sizeOf(context).width - 2 * margenPagina(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 14,
+          spacing: 16,
           children: [
             const Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Sesiones Asignadas',
@@ -676,7 +887,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               ],
             ),
             SizedBox(
-              width: 220,
+              width: esMovil(context) ? anchoUtil : 220,
               height: 40,
               child: TextField(
                 onChanged: (val) {
@@ -714,12 +925,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 Icon(Icons.sports,
                     size: 28, color: blueDark.withValues(alpha: 0.5)),
                 const SizedBox(width: 14),
-                const Text(
-                  'No tienes disciplinas asignadas en la base de datos.',
-                  style: TextStyle(
-                      color: blueDark,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold),
+                const Flexible(
+                  child: Text(
+                    'No tienes disciplinas asignadas en la base de datos.',
+                    style: TextStyle(
+                        color: blueDark,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -751,96 +964,115 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       String imageUrl,
       int inscritos,
       bool isCompleted) {
+    final movil = esMovil(context);
+
+    final miniatura = ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: imageUrl.isNotEmpty
+          ? Image.network(
+              imageUrl,
+              width: 68,
+              height: 68,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 68,
+                height: 68,
+                color: bgLight,
+                child: Icon(_getSportIcon(nombre), color: blueDark, size: 30),
+              ),
+            )
+          : Container(
+              width: 68,
+              height: 68,
+              color: bgLight,
+              child: Icon(_getSportIcon(nombre), color: blueDark, size: 30),
+            ),
+    );
+
+    final datos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          nombre,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: blueDark,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$horario · $lugar',
+          style: const TextStyle(fontSize: 13, color: textGrey),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '$inscritos Atletas Inscritos',
+          style: const TextStyle(
+            fontSize: 12,
+            color: orangePrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+
+    final boton = ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isCompleted ? Colors.green : orangePrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AttendancePage(
+              deporteId: id,
+              deporteNombre: nombre,
+            ),
+          ),
+        );
+      },
+      child: Text(
+        isCompleted ? 'ASISTENCIA REGISTRADA' : 'PASAR ASISTENCIA',
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(movil ? 16 : 20),
       decoration: cardDecoration,
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: imageUrl.isNotEmpty
-                ? Image.network(
-                    imageUrl,
-                    width: 68,
-                    height: 68,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 68,
-                      height: 68,
-                      color: bgLight,
-                      child: Icon(_getSportIcon(nombre),
-                          color: blueDark, size: 30),
-                    ),
-                  )
-                : Container(
-                    width: 68,
-                    height: 68,
-                    color: bgLight,
-                    child: Icon(_getSportIcon(nombre),
-                        color: blueDark, size: 30),
-                  ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      // En teléfono el botón de asistencia va debajo, a todo el ancho
+      child: movil
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  nombre,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: blueDark,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    miniatura,
+                    const SizedBox(width: 14),
+                    Expanded(child: datos),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$horario · $lugar',
-                  style: const TextStyle(fontSize: 13, color: textGrey),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$inscritos Atletas Inscritos',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: orangePrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const SizedBox(height: 14),
+                boton,
+              ],
+            )
+          : Row(
+              children: [
+                miniatura,
+                const SizedBox(width: 20),
+                Expanded(child: datos),
+                boton,
               ],
             ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isCompleted ? Colors.green : orangePrimary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 18, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AttendancePage(
-                    deporteId: id,
-                    deporteNombre: nombre,
-                  ),
-                ),
-              );
-            },
-            child: Text(
-              isCompleted ? 'ASISTENCIA REGISTRADA' : 'PASAR ASISTENCIA',
-              style:
-                  const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

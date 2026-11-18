@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'aviso_audiencia.dart';
 
 /// Avisos administrables (CRUD sobre la colección `avisos` de Firestore).
@@ -129,27 +130,34 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+      padding: EdgeInsets.symmetric(
+          horizontal: esCompacto(context) ? margenPagina(context) : 40,
+          vertical: esMovil(context) ? 20 : 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Wrap: en teléfono el botón "Nuevo aviso" baja debajo del título
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 14,
+            spacing: 16,
             children: [
-              const Column(
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('AVISOS',
+                  const Text('AVISOS',
                       style: TextStyle(
                           color: orange,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2)),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text('Comunicados para estudiantes',
                       style: TextStyle(
                           color: navy,
-                          fontSize: 26,
+                          fontSize: esMovil(context) ? 22 : 26,
                           fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -209,7 +217,28 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
-                        child: Row(
+                        child: Builder(builder: (context) {
+                         final movil = esMovil(context);
+                         final controles = <Widget>[
+                            Text(activo ? 'Activo' : 'Inactivo'),
+                            Switch(
+                              value: activo,
+                              activeThumbColor: orange,
+                              onChanged: (v) => _cambiarEstado(doc, v),
+                            ),
+                            IconButton(
+                              tooltip: 'Editar',
+                              onPressed: () => _abrirFormulario(doc: doc),
+                              icon: const Icon(Icons.edit_outlined, color: navy),
+                            ),
+                            IconButton(
+                              tooltip: 'Eliminar',
+                              onPressed: () => _eliminar(doc),
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.red),
+                            ),
+                         ];
+                         final fila = Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(
@@ -223,9 +252,12 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    runSpacing: 6,
                                     children: [
-                                      Flexible(
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 10),
                                         child: Text(
                                           (data['titulo'] ?? 'Aviso').toString(),
                                           style: const TextStyle(
@@ -234,7 +266,6 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                                               fontSize: 16),
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 2),
@@ -280,26 +311,24 @@ class _AdminAnnouncementsViewState extends State<AdminAnnouncementsView> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(activo ? 'Activo' : 'Inactivo'),
-                            Switch(
-                              value: activo,
-                              activeThumbColor: orange,
-                              onChanged: (v) => _cambiarEstado(doc, v),
-                            ),
-                            IconButton(
-                              tooltip: 'Editar',
-                              onPressed: () => _abrirFormulario(doc: doc),
-                              icon: const Icon(Icons.edit_outlined, color: navy),
-                            ),
-                            IconButton(
-                              tooltip: 'Eliminar',
-                              onPressed: () => _eliminar(doc),
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                            ),
+                            if (!movil) const SizedBox(width: 8),
+                            if (!movil) ...controles,
                           ],
-                        ),
+                        );
+                         return movil
+                             ? Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+                                   fila,
+                                   Wrap(
+                                     spacing: 8,
+                                     crossAxisAlignment: WrapCrossAlignment.center,
+                                     children: controles,
+                                   ),
+                                 ],
+                               )
+                             : fila;
+                        }),
                       ),
                     ),
                   );
@@ -364,6 +393,7 @@ class _AvisoDialogState extends State<_AvisoDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: margenDialogo(context),
       title: Text(widget.inicial == null ? 'Nuevo aviso' : 'Editar aviso'),
       content: SizedBox(
         width: 480,

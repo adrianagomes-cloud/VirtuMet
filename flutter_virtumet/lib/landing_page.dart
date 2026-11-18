@@ -5,6 +5,7 @@ import 'registration_page.dart';
 import 'landing_catalog_section.dart';
 import 'faq_section.dart';
 import 'support_chat.dart';
+import 'responsive.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -149,10 +150,24 @@ class _Navbar extends StatelessWidget {
     required this.onPreguntas,
   });
 
+  void _irALogin(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // En pantallas angostas los enlaces pasan a un menú desplegable
+    final compacto = esCompacto(context);
+    final movil = esMovil(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: movil ? 16 : (compacto ? 24 : 40),
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -169,33 +184,60 @@ class _Navbar extends StatelessWidget {
             onTap: onInicio,
             child: Image.asset(
               'lib/assets/Logo.png',
-              height: 70,
+              height: compacto ? 48 : 70,
               fit: BoxFit.contain,
             ),
           ),
           const Spacer(),
 
-          _navLink('Inicio', onTap: onInicio),
-          _navLink('Servicios', onTap: onServicios),
-          _navLink('Preguntas', onTap: onPreguntas),
-          _navLink('Soporte', onTap: () => showSupportChat(context)),
-
-          const SizedBox(width: 30),
+          if (!compacto) ...[
+            _navLink('Inicio', onTap: onInicio),
+            _navLink('Servicios', onTap: onServicios),
+            _navLink('Preguntas', onTap: onPreguntas),
+            _navLink('Soporte', onTap: () => showSupportChat(context)),
+            const SizedBox(width: 30),
+          ],
 
           OutlinedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
+            onPressed: () => _irALogin(context),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: LandingPage.blueDark),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              padding: EdgeInsets.symmetric(
+                horizontal: movil ? 16 : 24,
+                vertical: movil ? 10 : 14,
+              ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Ingresar', style: TextStyle(color: LandingPage.blueDark)),
           ),
+
+          if (compacto)
+            PopupMenuButton<int>(
+              tooltip: 'Menú',
+              icon: const Icon(Icons.menu, color: LandingPage.blueDark),
+              onSelected: (valor) {
+                switch (valor) {
+                  case 0:
+                    onInicio();
+                    break;
+                  case 1:
+                    onServicios();
+                    break;
+                  case 2:
+                    onPreguntas();
+                    break;
+                  case 3:
+                    showSupportChat(context);
+                    break;
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 0, child: Text('Inicio')),
+                PopupMenuItem(value: 1, child: Text('Servicios')),
+                PopupMenuItem(value: 2, child: Text('Preguntas')),
+                PopupMenuItem(value: 3, child: Text('Soporte')),
+              ],
+            ),
         ],
       ),
     );
@@ -228,9 +270,13 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = esMovil(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
+      padding: EdgeInsets.symmetric(
+        vertical: movil ? 48 : 80,
+        horizontal: margenPagina(context),
+      ),
       decoration: const BoxDecoration(
         image: DecorationImage(
           image: NetworkImage(
@@ -251,37 +297,42 @@ class _HeroSection extends StatelessWidget {
               color: LandingPage.orangePrimary,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
+            child: Text(
               'NOVEDAD • Inscripciones Abiertas 2026-C',
-              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: movil ? 11 : 13, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 24),
 
           RichText(
             textAlign: TextAlign.center,
-            text: const TextSpan(
-              style: TextStyle(fontSize: 42, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
+            text: TextSpan(
+              style: TextStyle(fontSize: movil ? 28 : 42, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
               children: [
-                TextSpan(text: 'IMPULSANDO LA EXCELENCIA\n'),
-                TextSpan(text: 'DEPORTIVA UNIVERSITARIA', style: TextStyle(color: LandingPage.orangePrimary)),
+                // En teléfono se quita el salto de línea fijo para que el texto fluya
+                TextSpan(text: movil ? 'IMPULSANDO LA EXCELENCIA ' : 'IMPULSANDO LA EXCELENCIA\n'),
+                const TextSpan(text: 'DEPORTIVA UNIVERSITARIA', style: TextStyle(color: LandingPage.orangePrimary)),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          const SizedBox(
-            width: 700,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700),
             child: Text(
               'Descubre un ecosistema diseñado para potenciar tu talento físico y académico. VirtuMet conecta a la comunidad atlética de la UNIMET con una gestión integral.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
+              style: TextStyle(color: Colors.white70, fontSize: movil ? 14 : 16, height: 1.5),
             ),
           ),
           const SizedBox(height: 32),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // Wrap: en teléfono los botones pasan a dos filas en lugar de desbordarse
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
             children: [
               ElevatedButton(
                 onPressed: () {
@@ -297,7 +348,6 @@ class _HeroSection extends StatelessWidget {
                 ),
                 child: const Text('EMPEZAR AHORA >', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(width: 16),
               OutlinedButton(
                 onPressed: onVerDisciplinas,
                 style: OutlinedButton.styleFrom(
@@ -309,7 +359,7 @@ class _HeroSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 60),
+          SizedBox(height: movil ? 40 : 60),
 
           const _RealTimeHeroStats(),
         ],
@@ -350,7 +400,7 @@ class _RealTimeHeroStats extends StatelessWidget {
             final bool isLoading = !usersSnapshot.hasData || !sportsSnapshot.hasData;
 
             return Wrap(
-              spacing: 50,
+              spacing: esMovil(context) ? 28 : 50,
               runSpacing: 20,
               alignment: WrapAlignment.center,
               children: [
@@ -413,83 +463,100 @@ class _FeatureSection2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compacto = esCompacto(context);
+    final movil = esMovil(context);
+
+    // Imagen con la etiqueta "Comunidad Activa UNIMET"
+    final imagen = Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.network(
+            'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
+            height: movil ? 220 : 320,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        ),
+        Positioned(
+          bottom: 20,
+          right: 20,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: LandingPage.blueDark,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.groups, color: LandingPage.orangePrimary, size: 20),
+                SizedBox(width: 8),
+                Text('Comunidad Activa UNIMET', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    // Texto, viñetas y botón
+    final texto = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.diversity_3, color: LandingPage.blueDark, size: 36),
+        const SizedBox(height: 16),
+        Text(
+          'COMUNIDAD Y LIDERAZGO',
+          style: TextStyle(fontSize: movil ? 22 : 28, fontWeight: FontWeight.bold, color: LandingPage.blueDark),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Fomentamos el trabajo en equipo, la disciplina y el desarrollo de habilidades directivas a través de la convivencia sana y la competencia universitaria.',
+          style: TextStyle(color: Colors.black54, height: 1.5, fontSize: 15),
+        ),
+        const SizedBox(height: 20),
+        _bulletPoint('Personal Certificado'),
+        _bulletPoint('Espacio de Convivencia'),
+        _bulletPoint('Eventos e Integración'),
+        const SizedBox(height: 24),
+        TextButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const RegistrationPage()),
+            );
+          },
+          child: const Text('EXPLORAR MÁS >', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 60),
+      padding: EdgeInsets.symmetric(
+        vertical: movil ? 48 : 80,
+        horizontal: movil ? 20 : (compacto ? 32 : 60),
+      ),
       color: LandingPage.bgLight,
       child: Center(
-        child: SizedBox(
-          width: 1100,
-          child: Row(
-            children: [
-              Expanded(
-                child: Stack(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          // En pantallas angostas la imagen y el texto se apilan
+          child: compacto
+              ? Column(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
-                        height: 320,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 20,
-                      right: 20,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: LandingPage.blueDark,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.groups, color: LandingPage.orangePrimary, size: 20),
-                            SizedBox(width: 8),
-                            Text('Comunidad Activa UNIMET', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ),
+                    imagen,
+                    const SizedBox(height: 32),
+                    texto,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: imagen),
+                    const SizedBox(width: 50),
+                    Expanded(child: texto),
                   ],
                 ),
-              ),
-              const SizedBox(width: 50),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.diversity_3, color: LandingPage.blueDark, size: 36),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'COMUNIDAD Y LIDERAZGO',
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: LandingPage.blueDark),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Fomentamos el trabajo en equipo, la disciplina y el desarrollo de habilidades directivas a través de la convivencia sana y la competencia universitaria.',
-                      style: TextStyle(color: Colors.black54, height: 1.5, fontSize: 15),
-                    ),
-                    const SizedBox(height: 20),
-                    _bulletPoint('Personal Certificado'),
-                    _bulletPoint('Espacio de Convivencia'),
-                    _bulletPoint('Eventos e Integración'),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const RegistrationPage()),
-                        );
-                      },
-                      child: const Text('EXPLORAR MÁS >', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -517,17 +584,21 @@ class _TechGridSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = esMovil(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 60),
+      padding: EdgeInsets.symmetric(
+        vertical: movil ? 48 : 80,
+        horizontal: movil ? 20 : (esCompacto(context) ? 32 : 60),
+      ),
       color: Colors.white,
       child: Column(
         children: [
           const Text('NUESTROS SERVICIOS', style: TextStyle(color: LandingPage.orangePrimary, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 8),
-          const Text('TECNOLOGÍA Y DEPORTE EN ARMONÍA', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: LandingPage.blueDark)),
+          Text('TECNOLOGÍA Y DEPORTE EN ARMONÍA', textAlign: TextAlign.center, style: TextStyle(fontSize: movil ? 22 : 30, fontWeight: FontWeight.bold, color: LandingPage.blueDark)),
           const SizedBox(height: 12),
-          const Text('Combinamos la innovación digital con la infraestructura física para una experiencia sin límites.', style: TextStyle(color: Colors.black54)),
-          const SizedBox(height: 50),
+          const Text('Combinamos la innovación digital con la infraestructura física para una experiencia sin límites.', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
+          SizedBox(height: movil ? 32 : 50),
 
           Wrap(
             spacing: 24,
@@ -555,8 +626,10 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En teléfonos muy angostos la tarjeta se reduce para no desbordar
+    final anchoMax = MediaQuery.sizeOf(context).width - 40;
     return Container(
-      width: 240,
+      width: anchoMax < 240 ? anchoMax : 240,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -592,11 +665,12 @@ class _CtaBannerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = esMovil(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
+      padding: EdgeInsets.symmetric(vertical: movil ? 36 : 60, horizontal: movil ? 16 : 40),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 1000),
-        padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 40),
+        padding: EdgeInsets.symmetric(vertical: movil ? 32 : 50, horizontal: movil ? 20 : 40),
         decoration: BoxDecoration(
           color: LandingPage.blueDark,
           borderRadius: BorderRadius.circular(20),
@@ -605,9 +679,9 @@ class _CtaBannerSection extends StatelessWidget {
           children: [
             RichText(
               textAlign: TextAlign.center,
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                children: [
+              text: TextSpan(
+                style: TextStyle(fontSize: movil ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.white),
+                children: const [
                   TextSpan(text: '¿LISTO PARA LLEVAR TU PASIÓN AL '),
                   TextSpan(text: 'SIGUIENTE NIVEL?', style: TextStyle(color: LandingPage.orangePrimary)),
                 ],
@@ -620,8 +694,10 @@ class _CtaBannerSection extends StatelessWidget {
               style: TextStyle(color: Colors.white70, fontSize: 15),
             ),
             const SizedBox(height: 30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
               children: [
                 ElevatedButton(
                   onPressed: () {
@@ -637,7 +713,6 @@ class _CtaBannerSection extends StatelessWidget {
                   ),
                   child: const Text('REGÍSTRATE AHORA >', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-                const SizedBox(width: 16),
                 OutlinedButton(
                   onPressed: onExplorarCatalogo,
                   style: OutlinedButton.styleFrom(
@@ -650,7 +725,7 @@ class _CtaBannerSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            const Text('Acceso institucional exclusivo para estudiantes y personal UNIMET.', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            const Text('Acceso institucional exclusivo para estudiantes y personal UNIMET.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
       ),
@@ -671,15 +746,15 @@ class _SponsorsSection extends StatelessWidget {
       color: Colors.white,
       child: Column(
         children: [
-          const Text('RESPALDADO POR LA COMUNIDAD METROPOLITANA', style: TextStyle(fontSize: 11, color: Colors.black38, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          const Text('RESPALDADO POR LA COMUNIDAD METROPOLITANA', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.black38, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
+          const Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 30,
+            runSpacing: 10,
+            children: [
               _SponsorTag('UNIMET'),
-              SizedBox(width: 30),
               _SponsorTag('ATHLETICS'),
-              SizedBox(width: 30),
               _SponsorTag('DEPORTES UNIMET'),
             ],
           ),
@@ -715,70 +790,109 @@ class _FooterSection extends StatelessWidget {
     required this.onPreguntas,
   });
 
+  static Widget _enlace(String texto, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(texto, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+      ),
+    );
+  }
+
+  static const TextStyle _tituloColumna = TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.bold,
+    fontSize: 12,
+    letterSpacing: 1.1,
+  );
+
   @override
   Widget build(BuildContext context) {
+    final compacto = esCompacto(context);
+    final movil = esMovil(context);
+
+    // Logo y descripción
+    final marca = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onInicio,
+          child: Image.asset(
+            'lib/assets/Logo.png',
+            height: movil ? 70 : 90,
+            fit: BoxFit.contain,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
+          style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+        ),
+      ],
+    );
+
+    final plataforma = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('PLATAFORMA', style: _tituloColumna),
+        const SizedBox(height: 12),
+        _enlace('Inicio', onInicio),
+        _enlace('Servicios', onServicios),
+        _enlace('Catálogo', onCatalogo),
+      ],
+    );
+
+    final asistencia = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ASISTENCIA', style: _tituloColumna),
+        const SizedBox(height: 12),
+        _enlace('Soporte', () => showSupportChat(context)),
+        _enlace('Preguntas Frecuentes', onPreguntas),
+        _enlace('Contacto', null),
+      ],
+    );
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 60),
+      padding: EdgeInsets.symmetric(
+        vertical: movil ? 36 : 50,
+        horizontal: movil ? 20 : (compacto ? 32 : 60),
+      ),
       color: const Color(0xFF0B192C),
       child: Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: Column(
+          // En pantallas angostas las tres columnas se apilan
+          compacto
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    InkWell(
-                      onTap: onInicio,
-                      child: Image.asset(
-                        'lib/assets/Logo.png',
-                        height: 90,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Plataforma digital para la gestión y promoción del deporte universitario en la Universidad Metropolitana.',
-                      style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+                    marca,
+                    const SizedBox(height: 28),
+                    Wrap(
+                      spacing: 48,
+                      runSpacing: 24,
+                      children: [plataforma, asistencia],
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 40),
-
-              Expanded(
-                child: Column(
+                )
+              : Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('PLATAFORMA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
-                    const SizedBox(height: 12),
-                    InkWell(onTap: onInicio, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Inicio', style: TextStyle(color: Colors.white54, fontSize: 13)))),
-                    InkWell(onTap: onServicios, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Servicios', style: TextStyle(color: Colors.white54, fontSize: 13)))),
-                    InkWell(onTap: onCatalogo, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Catálogo', style: TextStyle(color: Colors.white54, fontSize: 13)))),
+                    Expanded(flex: 2, child: marca),
+                    const SizedBox(width: 40),
+                    Expanded(child: plataforma),
+                    Expanded(child: asistencia),
                   ],
                 ),
-              ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('ASISTENCIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1)),
-                    const SizedBox(height: 12),
-                    InkWell(onTap: () => showSupportChat(context), child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Soporte', style: TextStyle(color: Colors.white54, fontSize: 13)))),
-                    InkWell(onTap: onPreguntas, child: const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Preguntas Frecuentes', style: TextStyle(color: Colors.white54, fontSize: 13)))),
-                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Contacto', style: TextStyle(color: Colors.white54, fontSize: 13))),
-                  ],
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 40),
           const Divider(color: Colors.white10),
           const SizedBox(height: 20),
-          const Text('© 2026 VirtuMet UNIMET. Todos los derechos reservados.', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          const Text(
+            '© 2026 VirtuMet UNIMET. Todos los derechos reservados.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
         ],
       ),
     );

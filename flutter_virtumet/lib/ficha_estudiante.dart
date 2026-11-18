@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -197,6 +198,7 @@ class _FichaDialogState extends State<_FichaDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: margenDialogo(context),
       title: const Text('Ficha deportiva'),
       content: SizedBox(
         width: 460,

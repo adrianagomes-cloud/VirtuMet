@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'precio_utils.dart';
 import 'image_search_dialog.dart';
 import 'cancha_selector.dart';
+import 'responsive.dart';
 
 class AdminSportsView extends StatefulWidget {
   const AdminSportsView({super.key});
@@ -243,6 +244,7 @@ class _AdminSportsViewState extends State<AdminSportsView> {
             }
 
             return AlertDialog(
+              insetPadding: margenDialogo(context),
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16)),
@@ -279,7 +281,8 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
+                      FilaAdaptable(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: _buildFormField(
@@ -339,7 +342,8 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                           ),
                         ),
                       const SizedBox(height: 12),
-                      Row(
+                      FilaAdaptable(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Column(
@@ -649,8 +653,9 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                       const SizedBox(height: 16),
 
                       // SECCIÓN DE IMAGEN PROMOCIONAL (COMPUTADORA O URL)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             useUrlMode
@@ -1156,18 +1161,24 @@ class _AdminSportsViewState extends State<AdminSportsView> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+      padding: EdgeInsets.symmetric(
+          horizontal: esCompacto(context) ? margenPagina(context) : 40,
+          vertical: esMovil(context) ? 20 : 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // Wrap: en teléfono el botón de registrar baja debajo del título
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            runSpacing: 16,
+            spacing: 16,
             children: [
-              const Column(
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'GESTIÓN DE DISCIPLINAS',
                     style: TextStyle(
                       fontSize: 11,
@@ -1176,11 +1187,11 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                       letterSpacing: 1.2,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     'Catálogo Deportivo de la UNIMET',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: esMovil(context) ? 22 : 28,
                       fontWeight: FontWeight.w900,
                       color: blueDark,
                     ),
@@ -1286,10 +1297,12 @@ class _AdminSportsViewState extends State<AdminSportsView> {
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 400,
                   crossAxisSpacing: 20,
                   mainAxisSpacing: 20,
+                  // En teléfono: altura fija para que no queden huecos vacíos
+                  mainAxisExtent: esMovil(context) ? 480 : null,
                   childAspectRatio: 0.82,
                 ),
                 itemCount: filteredDocs.length,

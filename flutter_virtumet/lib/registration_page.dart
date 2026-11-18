@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'login_page.dart';
+import 'responsive.dart';
 import 'student_dashboard_page.dart';
 import 'teacher_dashboard_page.dart';
 
@@ -312,10 +313,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                     color: const Color(0xFFF8F9FA),
                     child: Center(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(32),
+                        padding: EdgeInsets.all(esMovil(context) ? 16 : 32),
                         child: Container(
                           constraints: const BoxConstraints(maxWidth: 520),
-                          padding: const EdgeInsets.all(36),
+                          padding: EdgeInsets.all(esMovil(context) ? 20 : 36),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(24),
@@ -332,6 +333,30 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // En teléfono el botón de volver va dentro del formulario
+                                // para que no tape el selector Estudiante/Entrenador.
+                                if (esMovil(context))
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: TextButton.icon(
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor:
+                                            const Color(0xFF64748B),
+                                      ),
+                                      onPressed: () {
+                                        if (Navigator.canPop(context)) {
+                                          Navigator.pop(context);
+                                        } else {
+                                          Navigator.pushReplacementNamed(
+                                              context, '/');
+                                        }
+                                      },
+                                      icon: const Icon(Icons.arrow_back,
+                                          size: 16),
+                                      label: const Text('Volver al inicio'),
+                                    ),
+                                  ),
                                 Row(
                                   children: [
                                     Expanded(
@@ -713,6 +738,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
             ),
           ),
 
+          if (!esMovil(context))
           Positioned(
             top: 24,
             left: 24,

@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -148,6 +149,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
             }
 
             return AlertDialog(
+              insetPadding: margenDialogo(context),
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16)),
@@ -178,8 +180,9 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             useUrlMode
@@ -570,7 +573,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         return Scaffold(
           backgroundColor: bgLight,
           body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+            padding: EdgeInsets.symmetric(
+                horizontal: margenPagina(context), vertical: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -606,8 +610,10 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Row(
+                // En teléfono la foto y el formulario se apilan
+                FilaAdaptable(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  espacioVertical: 20,
                   children: [
                     // TARJETA DE FOTO DE PERFIL LATERAL
                     Container(
@@ -731,7 +737,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                     // FORMULARIO DE DATOS
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.all(28),
+                        padding: EdgeInsets.all(esMovil(context) ? 16 : 28),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -753,7 +759,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                       color: blueDark),
                                 ),
                                 const SizedBox(width: 12),
-                                const Column(
+                                const Expanded(
+                                  child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
@@ -771,10 +778,12 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                                     ),
                                   ],
                                 ),
+                                ),
                               ],
                             ),
                             const Divider(height: 30),
-                            Row(
+                            FilaAdaptable(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   child: _buildFormField(
@@ -798,7 +807,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            Row(
+                            FilaAdaptable(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   child: _buildFormField(

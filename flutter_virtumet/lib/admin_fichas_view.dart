@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_common.dart';
 import 'ficha_estudiante.dart';
@@ -137,7 +138,7 @@ class _AdminFichasViewState extends State<AdminFichasView> {
               for (int i = 0; i < _campos.length; i++)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
+                  child: FilaAdaptable(
                     children: [
                       Expanded(
                         child: TextFormField(
@@ -151,6 +152,9 @@ class _AdminFichasViewState extends State<AdminFichasView> {
                         ),
                       ),
                       const SizedBox(width: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                       DropdownButton<String>(
                         value: _campos[i].tipo,
                         items: const [
@@ -176,6 +180,8 @@ class _AdminFichasViewState extends State<AdminFichasView> {
                         tooltip: 'Quitar campo',
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                         onPressed: () => setState(() => _campos.removeAt(i)),
+                      ),
+                        ],
                       ),
                     ],
                   ),
@@ -359,7 +365,9 @@ class _InscripcionesListState extends State<_InscripcionesList> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(
-                  width: 320,
+                  width: esMovil(context)
+                      ? MediaQuery.sizeOf(context).width - 2 * margenPagina(context)
+                      : 320,
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Buscar estudiante, correo o disciplina',
@@ -400,7 +408,8 @@ class _InscripcionesListState extends State<_InscripcionesList> {
             for (final n in nombres) ...[
               Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 10),
-                child: Row(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Icon(Icons.sports_soccer, size: 18, color: kNavy),
                     const SizedBox(width: 8),
@@ -436,61 +445,81 @@ class _InscripcionesListState extends State<_InscripcionesList> {
     final estado = (m['estado'] ?? 'Confirmada').toString();
     final cancelada = estado == 'Cancelada';
     final color = cancelada ? Colors.redAccent : Colors.green;
+    final movil = esMovil(context);
+
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${m['nombreEstudiante'] ?? 'Estudiante'}  ·  ${m['nombreDeporte'] ?? 'Disciplina'}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text(
+          '${m['correoEstudiante'] ?? ''}  ·  ${m['horario'] ?? ''}  ·  ${m['lugar'] ?? ''}',
+          style: const TextStyle(color: Colors.black54, fontSize: 13),
+        ),
+        if (m['pagado'] == true)
+          Text(
+            'Pagado: \$${((m['montoPagado'] ?? m['precio'] ?? 0) as num).toStringAsFixed(2)} ${m['moneda'] ?? 'USD'}'
+            '  ·  ${m['metodoPago'] ?? 'PayPal'}  ·  Orden ${m['paypalOrderId'] ?? '-'}',
+            style: const TextStyle(
+                color: Colors.green,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+          )
+        else
+          const Text(
+            'Sin pago registrado',
+            style: TextStyle(color: Colors.black45, fontSize: 12),
+          ),
+      ],
+    );
+
+    final acciones = <Widget>[
+      Chip(
+        label: Text(estado, style: TextStyle(color: color)),
+        side: BorderSide(color: color),
+        backgroundColor: Colors.white,
+      ),
+      IconButton(
+        tooltip: 'Ver ficha del estudiante',
+        icon: const Icon(Icons.assignment_ind_outlined, color: kNavy),
+        onPressed: () => mostrarFichaDeEstudiante(
+          context,
+          uid: (m['estudianteId'] ?? '').toString(),
+          nombre: (m['nombreEstudiante'] ?? 'Estudiante').toString(),
+        ),
+      ),
+      if (!cancelada)
+        IconButton(
+          tooltip: 'Cancelar inscripción',
+          icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
+          onPressed: () => _cancelar(context, d),
+        ),
+    ];
+
     return AdminCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      // En teléfono los botones pasan debajo de los datos
+      child: movil
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${m['nombreEstudiante'] ?? 'Estudiante'}  ·  ${m['nombreDeporte'] ?? 'Disciplina'}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                info,
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: acciones,
                 ),
-                Text(
-                  '${m['correoEstudiante'] ?? ''}  ·  ${m['horario'] ?? ''}  ·  ${m['lugar'] ?? ''}',
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
-                ),
-                if (m['pagado'] == true)
-                  Text(
-                    'Pagado: \$${((m['montoPagado'] ?? m['precio'] ?? 0) as num).toStringAsFixed(2)} ${m['moneda'] ?? 'USD'}'
-                    '  ·  ${m['metodoPago'] ?? 'PayPal'}  ·  Orden ${m['paypalOrderId'] ?? '-'}',
-                    style: const TextStyle(
-                        color: Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600),
-                  )
-                else
-                  const Text(
-                    'Sin pago registrado',
-                    style: TextStyle(color: Colors.black45, fontSize: 12),
-                  ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: info),
+                ...acciones,
               ],
             ),
-          ),
-          Chip(
-            label: Text(estado, style: TextStyle(color: color)),
-            side: BorderSide(color: color),
-            backgroundColor: Colors.white,
-          ),
-          IconButton(
-            tooltip: 'Ver ficha del estudiante',
-            icon: const Icon(Icons.assignment_ind_outlined, color: kNavy),
-            onPressed: () => mostrarFichaDeEstudiante(
-              context,
-              uid: (m['estudianteId'] ?? '').toString(),
-              nombre: (m['nombreEstudiante'] ?? 'Estudiante').toString(),
-            ),
-          ),
-          if (!cancelada)
-            IconButton(
-              tooltip: 'Cancelar inscripción',
-              icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
-              onPressed: () => _cancelar(context, d),
-            ),
-        ],
-      ),
     );
   }
 }

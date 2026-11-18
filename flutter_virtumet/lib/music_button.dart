@@ -90,11 +90,16 @@ class _MusicOverlayState extends State<MusicOverlay> {
     MusicService.instance.iniciar();
     _entradaApp = OverlayEntry(builder: (_) => widget.child);
     _entradaBoton = OverlayEntry(
-      builder: (_) => const Positioned(
-        left: 16,
-        bottom: 16,
-        child: _MusicButton(),
-      ),
+      builder: (contexto) {
+        // En teléfono va abajo a la derecha para no tapar el menú ni el contenido
+        final movil = MediaQuery.sizeOf(contexto).width < 700;
+        return Positioned(
+          left: movil ? null : 16,
+          right: movil ? 12 : null,
+          bottom: movil ? 12 : 16,
+          child: const _MusicButton(),
+        );
+      },
     );
   }
 
@@ -155,13 +160,15 @@ class _MusicButtonState extends State<_MusicButton> {
   Widget build(BuildContext context) {
     final m = MusicService.instance;
     final sonando = m.sonando.value;
+    // En teléfono solo se muestra play/pausa (el volumen se ajusta con los botones del equipo)
+    final movil = MediaQuery.sizeOf(context).width < 700;
     return Material(
       color: Colors.white,
       elevation: 4,
       shadowColor: Colors.black38,
       borderRadius: BorderRadius.circular(28),
       child: SizedBox(
-        height: 48,
+        height: movil ? 40 : 48,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -182,6 +189,7 @@ class _MusicButtonState extends State<_MusicButton> {
                   onChanged: m.cambiarVolumen,
                 ),
               ),
+            if (!movil)
             IconButton(
               icon: Icon(
                 _expandido ? Icons.chevron_left : Icons.volume_up,

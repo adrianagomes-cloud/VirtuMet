@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -293,8 +294,8 @@ class _AttendancePageState extends State<AttendancePage> {
                       }).toList();
 
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 24),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: margenPagina(context), vertical: 24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -306,21 +307,46 @@ class _AttendancePageState extends State<AttendancePage> {
                             const SizedBox(height: 20),
 
                             // TARJETAS KPIS
-                            Row(
-                              children: [
-                                _kpiStat('PRESENTES', presentes.toString(),
-                                    Colors.green),
-                                const SizedBox(width: 16),
-                                _kpiStat(
-                                    'AUSENTES', ausentes.toString(), Colors.red),
-                                const SizedBox(width: 16),
-                                _kpiStat(
-                                    'RETRASOS', retrasos.toString(), Colors.orange),
-                                const SizedBox(width: 16),
-                                _kpiStat(
-                                    'PENDIENTES', pendientes.toString(), blueDark),
-                              ],
-                            ),
+                            // En teléfono las 4 tarjetas van en dos filas de dos
+                            esMovil(context)
+                                ? Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          _kpiStat('PRESENTES',
+                                              presentes.toString(), Colors.green),
+                                          const SizedBox(width: 12),
+                                          _kpiStat('AUSENTES',
+                                              ausentes.toString(), Colors.red),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          _kpiStat('RETRASOS',
+                                              retrasos.toString(), Colors.orange),
+                                          const SizedBox(width: 12),
+                                          _kpiStat('PENDIENTES',
+                                              pendientes.toString(), blueDark),
+                                        ],
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      _kpiStat('PRESENTES', presentes.toString(),
+                                          Colors.green),
+                                      const SizedBox(width: 16),
+                                      _kpiStat('AUSENTES', ausentes.toString(),
+                                          Colors.red),
+                                      const SizedBox(width: 16),
+                                      _kpiStat('RETRASOS', retrasos.toString(),
+                                          Colors.orange),
+                                      const SizedBox(width: 16),
+                                      _kpiStat('PENDIENTES',
+                                          pendientes.toString(), blueDark),
+                                    ],
+                                  ),
                             const SizedBox(height: 28),
 
                             LayoutBuilder(
@@ -465,6 +491,8 @@ class _AttendancePageState extends State<AttendancePage> {
                                       Expanded(
                                         flex: 1,
                                         child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                           children: [
                                             _buildSessionDetailsCard(
                                               horario: horarioReal,
@@ -530,6 +558,41 @@ class _AttendancePageState extends State<AttendancePage> {
         nombre.isNotEmpty && nombre.length >= 2
             ? nombre.substring(0, 2).toUpperCase()
             : 'EST';
+    final movil = esMovil(context);
+
+    final avatar = CircleAvatar(
+      backgroundColor: blueDark.withValues(alpha: 0.1),
+      child: Text(initials,
+          style: const TextStyle(
+              color: blueDark, fontSize: 12, fontWeight: FontWeight.bold)),
+    );
+
+    final botones = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _statusButton(studentKey, nombre, 'presente', Icons.check_circle_rounded,
+            Colors.green, currentStatus == 'presente'),
+        const SizedBox(width: 6),
+        _statusButton(studentKey, nombre, 'ausente', Icons.cancel_rounded,
+            Colors.red, currentStatus == 'ausente'),
+        const SizedBox(width: 6),
+        _statusButton(studentKey, nombre, 'retraso', Icons.watch_later_rounded,
+            Colors.orange, currentStatus == 'retraso'),
+      ],
+    );
+
+    final datos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(nombre,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13, color: blueDark)),
+        Text(carnet, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        if (movil)
+          Text(facultad,
+              style: const TextStyle(fontSize: 12, color: Colors.black87)),
+      ],
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -539,51 +602,37 @@ class _AttendancePageState extends State<AttendancePage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black12),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: blueDark.withValues(alpha: 0.1),
-            child: Text(initials,
-                style: const TextStyle(
-                    color: blueDark,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Column(
+      // En teléfono los botones de asistencia van debajo de los datos
+      child: movil
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nombre,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: blueDark)),
-                Text(carnet,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    avatar,
+                    const SizedBox(width: 12),
+                    Expanded(child: datos),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerRight, child: botones),
+              ],
+            )
+          : Row(
+              children: [
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: datos),
+                Expanded(
+                  flex: 2,
+                  child: Text(facultad,
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black87)),
+                ),
+                botones,
               ],
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(facultad,
-                style: const TextStyle(fontSize: 12, color: Colors.black87)),
-          ),
-          Row(
-            children: [
-              _statusButton(studentKey, nombre, 'presente',
-                  Icons.check_circle_rounded, Colors.green, currentStatus == 'presente'),
-              const SizedBox(width: 6),
-              _statusButton(studentKey, nombre, 'ausente',
-                  Icons.cancel_rounded, Colors.red, currentStatus == 'ausente'),
-              const SizedBox(width: 6),
-              _statusButton(studentKey, nombre, 'retraso',
-                  Icons.watch_later_rounded, Colors.orange, currentStatus == 'retraso'),
-            ],
-          ),
-        ],
-      ),
     );
   }
 

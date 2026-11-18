@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -210,7 +211,8 @@ class _CommunityViewState extends State<CommunityView> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 32.0),
+      padding: EdgeInsets.symmetric(
+          horizontal: margenPagina(context), vertical: 32.0),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 820),

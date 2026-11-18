@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'aviso_audiencia.dart';
@@ -22,7 +23,8 @@ class StudentAnnouncementsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+      padding: EdgeInsets.symmetric(
+          horizontal: margenPagina(context), vertical: 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

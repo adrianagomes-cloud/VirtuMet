@@ -1,3 +1,4 @@
+import 'responsive.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -137,6 +138,7 @@ class _ImageSearchDialogState extends State<_ImageSearchDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: margenDialogo(context),
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

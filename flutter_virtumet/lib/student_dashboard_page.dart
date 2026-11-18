@@ -9,6 +9,7 @@ import 'student_announcements_view.dart';
 import 'aviso_audiencia.dart';
 import 'community_view.dart';
 import 'support_chat.dart';
+import 'responsive.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   const StudentDashboardPage({super.key});
@@ -22,6 +23,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
   // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 5: Avisos
   int _selectedIndex = 0;
+
+  // Llave del Scaffold para abrir el menú lateral (hamburguesa) en teléfono
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const Color blueDark = Color(0xFF0F2C59);
   static const Color orangePrimary = Color(0xFFFF5500);
@@ -124,7 +128,11 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             final int totalInscritas = misInscripciones.length;
 
             return Scaffold(
+              key: _scaffoldKey,
               backgroundColor: bgLight,
+              drawer: esCompacto(context)
+                  ? _buildDrawer(nombreEstudiante, fotoUrl)
+                  : null,
               body: SingleChildScrollView(
                 child: Column(
                   children: [
@@ -136,8 +144,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       )
                     else if (_selectedIndex == 2)
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 32),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: margenPagina(context), vertical: 32),
                         child: _buildMainContent(
                             misInscripciones, nombreEstudiante),
                       )
@@ -151,8 +159,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                         children: [
                           _buildHeroBanner(primerNombre, totalInscritas),
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 40.0, vertical: 32.0),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: margenPagina(context),
+                                vertical: esMovil(context) ? 20 : 32),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -162,6 +171,20 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                   builder: (context, constraints) {
                                     final bool isDesktop =
                                         constraints.maxWidth > 850;
+                                    // En pantallas angostas la columna lateral
+                                    // (avisos y eventos) pasa debajo del contenido
+                                    if (!isDesktop) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          _buildMainContent(misInscripciones,
+                                              nombreEstudiante),
+                                          const SizedBox(height: 24),
+                                          _buildRightSidebar(misInscripciones),
+                                        ],
+                                      );
+                                    }
                                     return Row(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -201,6 +224,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildTopNavigationBar(String nombreEstudiante, String fotoUrl) {
+    if (esCompacto(context)) {
+      return _buildCompactNavBar(nombreEstudiante, fotoUrl);
+    }
     return Container(
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -295,6 +321,172 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
+  /// Barra superior para teléfono y tablet vertical: logo, foto de perfil y
+  /// botón de menú (hamburguesa) que abre el panel lateral.
+  Widget _buildCompactNavBar(String nombreEstudiante, String fotoUrl) {
+    return Container(
+      height: 60,
+      padding: EdgeInsets.symmetric(horizontal: margenPagina(context) - 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _selectedIndex = 0),
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'lib/assets/Logo.png',
+              height: 32,
+              errorBuilder: (_, __, ___) => const Text('VirtuMet',
+                  style: TextStyle(
+                      color: blueDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18)),
+            ),
+          ),
+          const Spacer(),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StudentProfilePage()),
+            ),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: orangePrimary.withValues(alpha: 0.2),
+                backgroundImage:
+                    fotoUrl.isNotEmpty ? NetworkImage(fotoUrl) : null,
+                child: fotoUrl.isEmpty
+                    ? Text(
+                        _getInitials(nombreEstudiante),
+                        style: const TextStyle(
+                            color: orangePrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu, color: blueDark),
+            tooltip: 'Menú',
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Panel lateral con las mismas secciones de la barra superior.
+  Widget _buildDrawer(String nombreEstudiante, String fotoUrl) {
+    Widget item(IconData icono, String titulo, int indice) {
+      final bool activo = _selectedIndex == indice;
+      return ListTile(
+        leading: Icon(icono, color: activo ? orangePrimary : blueDark),
+        title: Text(titulo,
+            style: TextStyle(
+                color: activo ? orangePrimary : blueDark,
+                fontWeight: activo ? FontWeight.bold : FontWeight.w600)),
+        selected: activo,
+        selectedTileColor: orangePrimary.withValues(alpha: 0.08),
+        onTap: () {
+          Navigator.pop(context); // cierra el menú
+          setState(() => _selectedIndex = indice);
+        },
+      );
+    }
+
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StudentProfilePage()),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: orangePrimary.withValues(alpha: 0.2),
+                      backgroundImage:
+                          fotoUrl.isNotEmpty ? NetworkImage(fotoUrl) : null,
+                      child: fotoUrl.isEmpty
+                          ? Text(_getInitials(nombreEstudiante),
+                              style: const TextStyle(
+                                  color: orangePrimary,
+                                  fontWeight: FontWeight.bold))
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nombreEstudiante,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: blueDark,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15)),
+                          const Text('Ver mi perfil',
+                              style:
+                                  TextStyle(color: textGrey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            item(Icons.home_outlined, 'Inicio', 0),
+            item(Icons.sports_soccer_outlined, 'Catálogo Deportivo', 1),
+            item(Icons.event_note_outlined, 'Mis Actividades', 2),
+            item(Icons.groups_outlined, 'Comunidad', 3),
+            item(Icons.campaign_outlined, 'Avisos', 5),
+            const Spacer(),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.support_agent, color: blueDark),
+              title: const Text('Soporte',
+                  style: TextStyle(
+                      color: blueDark, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                showSupportChat(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: textGrey),
+              title: const Text('Cerrar sesión',
+                  style: TextStyle(
+                      color: textGrey, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _handleLogout();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _navLink(String title, {required int targetIndex}) {
     final bool isSelected = _selectedIndex == targetIndex;
 
@@ -329,9 +521,11 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _buildHeroBanner(String primerNombre, int totalInscritas) {
+    final bool movil = esMovil(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 64),
+      padding: EdgeInsets.symmetric(
+          horizontal: margenPagina(context), vertical: movil ? 32 : 64),
       decoration: BoxDecoration(
         color: blueDark,
         image: DecorationImage(
@@ -360,15 +554,17 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           const SizedBox(height: 16),
           Text(
             '¡BUENAS TARDES, $primerNombre!',
-            style: const TextStyle(
-                color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: movil ? 24 : 36,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             totalInscritas > 0
                 ? 'Tienes $totalInscritas disciplina(s) inscrita(s) activas. Revisa tu agenda y prepárate para entrenar.'
                 : 'Aún no tienes disciplinas inscritas. Explora el catálogo deportivo e inscríbete.',
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: Colors.white, fontSize: movil ? 14 : 16),
           ),
         ],
       ),
@@ -381,19 +577,37 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       builder: (context, eventsSnapshot) {
         final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
 
+        // En teléfono las tres tarjetas se apilan; en pantallas grandes van en fila
+        final bool movil = esMovil(context);
+        final tarjetas = [
+          _statCard('DISCIPLINAS INSCRITAS',
+              totalInscritas.toString().padLeft(2, '0'), Icons.people_outline,
+              isLive: true, expandir: !movil),
+          _statCard('ACTIVIDADES HOY', totalInscritas > 0 ? '01' : '00',
+              Icons.calendar_today_outlined,
+              isLive: true, expandir: !movil),
+          _statCard('PRÓXIMOS EVENTOS',
+              totalEventos.toString().padLeft(2, '0'), Icons.emoji_events_outlined,
+              isLive: true, expandir: !movil),
+        ];
+        if (movil) {
+          return Column(
+            children: [
+              tarjetas[0],
+              const SizedBox(height: 12),
+              tarjetas[1],
+              const SizedBox(height: 12),
+              tarjetas[2],
+            ],
+          );
+        }
         return Row(
           children: [
-            _statCard('DISCIPLINAS INSCRITAS',
-                totalInscritas.toString().padLeft(2, '0'), Icons.people_outline,
-                isLive: true),
+            tarjetas[0],
             const SizedBox(width: 24),
-            _statCard('ACTIVIDADES HOY', totalInscritas > 0 ? '01' : '00',
-                Icons.calendar_today_outlined,
-                isLive: true),
+            tarjetas[1],
             const SizedBox(width: 24),
-            _statCard('PRÓXIMOS EVENTOS',
-                totalEventos.toString().padLeft(2, '0'), Icons.emoji_events_outlined,
-                isLive: true),
+            tarjetas[2],
           ],
         );
       },
@@ -401,10 +615,10 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   }
 
   Widget _statCard(String title, String value, IconData icon,
-      {bool isLive = false}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(24),
+      {bool isLive = false, bool expandir = true}) {
+    final tarjeta = Container(
+        width: expandir ? null : double.infinity,
+        padding: EdgeInsets.all(esMovil(context) ? 18 : 24),
         decoration: cardDecoration,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,8 +657,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                     fontWeight: FontWeight.bold)),
           ],
         ),
-      ),
     );
+    return expandir ? Expanded(child: tarjeta) : tarjeta;
   }
 
   Widget _buildMainContent(
@@ -498,13 +712,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   final String imageUrl =
                       (sportData['imageUrl'] ?? '').toString().trim();
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: cardDecoration,
-                    child: Row(
-                      children: [
-                        ClipRRect(
+                  final bool movil = esMovil(context);
+                  final Widget miniatura = ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: imageUrl.isNotEmpty
                               ? Image.network(
@@ -515,10 +724,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                   errorBuilder: (_, __, ___) => _fallbackThumb(),
                                 )
                               : _fallbackThumb(),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
+                        );
+                  final Widget infoDeporte = Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(deporteNombre,
@@ -537,9 +744,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                         fontSize: 12, color: textGrey)),
                               ],
                             ],
-                          ),
-                        ),
-                        TextButton.icon(
+                          );
+                  final Widget botonCalificar = TextButton.icon(
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.amber.shade800,
                             padding: const EdgeInsets.symmetric(
@@ -551,7 +757,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                               builder: (ctx) => AlertDialog(
                                 title: Text('Calificar $deporteNombre'),
                                 content: SizedBox(
-                                  width: 400,
+                                  width: movil ? double.maxFinite : 400,
                                   child: StudentReviewFormView(
                                     deporteId: deporteId,
                                     deporteNombre: deporteNombre,
@@ -569,9 +775,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                           label: const Text('Calificar',
                               style: TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
+                        );
+                  final Widget chipInscrito = Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
@@ -596,9 +801,44 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
+                        );
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: EdgeInsets.all(movil ? 12 : 16),
+                    decoration: cardDecoration,
+                    // En teléfono los botones pasan debajo de la información
+                    child: movil
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  miniatura,
+                                  const SizedBox(width: 12),
+                                  Expanded(child: infoDeporte),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [botonCalificar, chipInscrito],
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              miniatura,
+                              const SizedBox(width: 16),
+                              Expanded(child: infoDeporte),
+                              botonCalificar,
+                              const SizedBox(width: 8),
+                              chipInscrito,
+                            ],
+                          ),
                   );
                 },
               );

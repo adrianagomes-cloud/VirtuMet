@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_common.dart';
@@ -171,6 +172,7 @@ class _ConsultaCardState extends State<_ConsultaCard> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: margenDialogo(context),
         title: const Text('Eliminar consulta'),
         content: const Text('¿Eliminar esta consulta? No se puede deshacer.'),
         actions: [

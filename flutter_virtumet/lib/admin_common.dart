@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'responsive.dart';
 
 // Paleta compartida con el resto de VirtuMet
 const Color kNavy = Color(0xFF0F2C59);
@@ -57,31 +58,38 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final textos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: kNavy,
-                ),
-              ),
-              if (subtitle != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    subtitle!,
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                ),
-            ],
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: esMovil(context) ? 20 : 22,
+            fontWeight: FontWeight.bold,
+            color: kNavy,
           ),
         ),
+        if (subtitle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              subtitle!,
+              style: const TextStyle(color: Colors.black54),
+            ),
+          ),
+      ],
+    );
+
+    // En teléfono el botón de acción va debajo del título
+    if (esMovil(context) && trailing != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [textos, const SizedBox(height: 12), trailing!],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: textos),
         if (trailing != null) trailing!,
       ],
     );
@@ -120,7 +128,10 @@ class AdminPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
+      padding: EdgeInsets.symmetric(
+        horizontal: esCompacto(context) ? margenPagina(context) : 50,
+        vertical: esMovil(context) ? 20 : 30,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
