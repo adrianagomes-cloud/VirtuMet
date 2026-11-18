@@ -1,12 +1,12 @@
 {
-    "name": "flutter_virtumet",
-    "short_name": "flutter_virtumet",
+    "name": "VirtuMet - Samán Deportivo",
+    "short_name": "VirtuMet",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#FFFFFF",
+    "theme_color": "#0F2C59",
+    "description": "Plataforma de gestión deportiva de la Universidad Metropolitana.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
