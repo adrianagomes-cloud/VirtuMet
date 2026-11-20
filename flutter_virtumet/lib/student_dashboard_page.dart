@@ -6,6 +6,7 @@ import 'student_sports_view.dart';
 import 'student_profile_page.dart';
 import 'student_review_form_view.dart';
 import 'student_announcements_view.dart';
+import 'events_view.dart';
 import 'aviso_audiencia.dart';
 import 'community_view.dart';
 import 'support_chat.dart';
@@ -21,7 +22,7 @@ class StudentDashboardPage extends StatefulWidget {
 class _StudentDashboardPageState extends State<StudentDashboardPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 5: Avisos
+  // 0: Inicio, 1: Catálogo Deportivo, 2: Mis Actividades, 3: Comunidad, 4: Eventos, 5: Avisos
   int _selectedIndex = 0;
 
   // Llave del Scaffold para abrir el menú lateral (hamburguesa) en teléfono
@@ -151,6 +152,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       )
                     else if (_selectedIndex == 3)
                       const CommunityView(userRole: 'student')
+                    else if (_selectedIndex == 4)
+                      const EventsView()
                     else if (_selectedIndex == 5)
                       const StudentAnnouncementsView()
                     else
@@ -261,6 +264,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           _navLink('Mis Actividades', targetIndex: 2),
           _navLink('Comunidad', targetIndex: 3),
           _navLink('Avisos', targetIndex: 5),
+          _navLink('Eventos', targetIndex: 4),
           const Spacer(),
           Row(
             children: [
@@ -458,6 +462,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             item(Icons.event_note_outlined, 'Mis Actividades', 2),
             item(Icons.groups_outlined, 'Comunidad', 3),
             item(Icons.campaign_outlined, 'Avisos', 5),
+            item(Icons.event_outlined, 'Eventos', 4),
             const Spacer(),
             const Divider(height: 1),
             ListTile(
@@ -575,7 +580,10 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('eventos').snapshots(),
       builder: (context, eventsSnapshot) {
-        final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
+        final int totalEventos = eventosProximos(
+                (eventsSnapshot.data?.docs ?? [])
+                    .map((d) => d.data() as Map<String, dynamic>))
+            .length;
 
         // En teléfono las tres tarjetas se apilan; en pantallas grandes van en fila
         final bool movil = esMovil(context);
@@ -1043,26 +1051,49 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             stream:
                 FirebaseFirestore.instance.collection('eventos').snapshots(),
             builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? [];
-              if (docs.isEmpty) {
+              if (snapshot.hasError) {
+                return const Text('No se pudieron cargar los eventos',
+                    style: TextStyle(fontSize: 12, color: Colors.grey));
+              }
+              final proximos = eventosProximos((snapshot.data?.docs ?? [])
+                  .map((d) => d.data() as Map<String, dynamic>));
+              if (proximos.isEmpty) {
                 return const Text('No hay eventos próximos',
                     style: TextStyle(fontSize: 12, color: Colors.grey));
               }
               return Column(
-                children: docs.take(3).map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(data['titulo'] ?? '',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: blueDark)),
-                    subtitle: Text(data['fechaKey'] ?? '',
-                        style:
-                            const TextStyle(fontSize: 11, color: Colors.grey)),
-                  );
-                }).toList(),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...proximos.take(3).map((data) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text((data['titulo'] ?? '').toString(),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: blueDark)),
+                      subtitle: Text(textoFechaEvento(data),
+                          style:
+                              const TextStyle(fontSize: 11, color: Colors.grey)),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedIndex = 4),
+                      child: const Text(
+                        'VER TODOS LOS EVENTOS >',
+                        style: TextStyle(
+                          color: orangePrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),

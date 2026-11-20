@@ -7,6 +7,7 @@ import 'attendance_page.dart';
 import 'teacher_profile_page.dart';
 import 'teacher_reviews_view.dart';
 import 'student_announcements_view.dart';
+import 'events_view.dart';
 import 'aviso_audiencia.dart';
 import 'community_view.dart';
 import 'support_chat.dart';
@@ -22,7 +23,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  int _selectedIndex = 0; // 0: Inicio, 1: Avisos, 2: Comunidad, 3: Mis Disciplinas, 4: Mis Reseñas
+  int _selectedIndex = 0; // 0: Inicio, 1: Avisos, 2: Comunidad, 3: Mis Disciplinas, 4: Mis Reseñas, 5: Eventos
   String _searchQuery = '';
 
   static const Color blueDark = Color(0xFF0F2C59);
@@ -211,7 +212,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                             _buildTopNavigationBar(
                                 context, userId, nombreUsuario, photoUrl),
 
-                            if (_selectedIndex == 4)
+                            if (_selectedIndex == 5)
+                              const EventsView()
+                            else if (_selectedIndex == 4)
                               const TeacherReviewsView()
                             else if (_selectedIndex == 3)
                               _buildMyDisciplinesView(
@@ -491,6 +494,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       ('Inicio', Icons.home_outlined, 0),
       ('Mis Disciplinas', Icons.sports_soccer_outlined, 3),
       ('Avisos', Icons.campaign_outlined, 1),
+      ('Eventos', Icons.event_outlined, 5),
       ('Comunidad', Icons.groups_outlined, 2),
       ('Mis Reseñas', Icons.star_outline_rounded, 4),
     ];
@@ -629,6 +633,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           _navLink('Inicio', targetIndex: 0),
           _navLink('Mis Disciplinas', targetIndex: 3),
           _navLink('Avisos', targetIndex: 1),
+          _navLink('Eventos', targetIndex: 5),
           _navLink('Comunidad', targetIndex: 2),
           _navLink('Mis Reseñas', targetIndex: 4),
 
@@ -782,7 +787,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('eventos').snapshots(),
       builder: (context, eventsSnapshot) {
-        final int totalEventos = eventsSnapshot.data?.docs.length ?? 0;
+        final int totalEventos = eventosProximos(
+                (eventsSnapshot.data?.docs ?? [])
+                    .map((d) => d.data() as Map<String, dynamic>))
+            .length;
 
         return FilaAdaptable(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1215,30 +1223,49 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             stream:
                 FirebaseFirestore.instance.collection('eventos').snapshots(),
             builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? [];
-              if (docs.isEmpty) {
+              if (snapshot.hasError) {
+                return const Text('No se pudieron cargar los eventos',
+                    style: TextStyle(fontSize: 12, color: textGrey));
+              }
+              final proximos = eventosProximos((snapshot.data?.docs ?? [])
+                  .map((d) => d.data() as Map<String, dynamic>));
+              if (proximos.isEmpty) {
                 return const Text('No hay eventos próximos',
                     style: TextStyle(fontSize: 12, color: textGrey));
               }
               return Column(
-                children: docs.take(3).map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final String titulo = (data['titulo'] ?? '').toString();
-                  final String fecha =
-                      (data['fechaKey'] ?? data['fecha'] ?? '').toString();
-
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(titulo,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: blueDark)),
-                    subtitle: Text(fecha,
-                        style: const TextStyle(
-                            fontSize: 11, color: textGrey)),
-                  );
-                }).toList(),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...proximos.take(3).map((data) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text((data['titulo'] ?? '').toString(),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: blueDark)),
+                      subtitle: Text(textoFechaEvento(data),
+                          style:
+                              const TextStyle(fontSize: 11, color: textGrey)),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedIndex = 5),
+                      child: const Text(
+                        'VER TODOS LOS EVENTOS >',
+                        style: TextStyle(
+                          color: orangePrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
