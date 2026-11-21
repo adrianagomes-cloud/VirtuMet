@@ -1286,7 +1286,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               icon: const Icon(Icons.support_agent, size: 18),
               label: const Text('¿Necesitas ayuda? Soporte'),
             ),
-            const Text('© 2026 Samán Deportivo · UNIMET',
+            const Text('© 2026 VirtuMet · UNIMET',
                 style: TextStyle(color: textGrey, fontSize: 12)),
           ],
         ),
