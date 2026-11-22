@@ -383,6 +383,13 @@ class _StudentSportsViewState extends State<StudentSportsView> {
 
     final bool yaInscrito = misInscripciones
         .any((i) => (i.data() as Map<String, dynamic>)['deporteId'] == id);
+    DocumentSnapshot? miInscripcion;
+    for (final i in misInscripciones) {
+      if ((i.data() as Map<String, dynamic>)['deporteId'] == id) {
+        miInscripcion = i;
+        break;
+      }
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -555,7 +562,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: yaInscrito
-                                      ? Colors.grey
+                                      ? Colors.redAccent
                                       : (cuposDisponibles > 0
                                           ? orangePrimary
                                           : Colors.grey),
@@ -566,7 +573,10 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8)),
                                 ),
-                                onPressed: (!puedeInscribirse || cuentaInactiva || yaInscrito || cuposDisponibles <= 0)
+                                onPressed: yaInscrito && miInscripcion != null
+                                    ? () => _cancelarInscripcion(
+                                          context, miInscripcion!, nombre)
+                                    : (!puedeInscribirse || cuentaInactiva || yaInscrito || cuposDisponibles <= 0)
                                     ? null
                                     : () => _pagarEInscribir(
                                         context: context,
@@ -583,7 +593,7 @@ class _StudentSportsViewState extends State<StudentSportsView> {
                                       : cuentaInactiva
                                       ? 'Inactiva'
                                       : yaInscrito
-                                      ? 'Inscrito'
+                                      ? 'Cancelar inscripción'
                                       : (cuposDisponibles > 0
                                           ? 'Inscribirme'
                                           : 'Agotado'),
@@ -606,6 +616,76 @@ class _StudentSportsViewState extends State<StudentSportsView> {
         );
       },
     );
+  }
+
+  /// Cancela la inscripción del propio estudiante y libera el cupo
+  /// (misma transacción que usa el administrador en admin_fichas_view.dart).
+  Future<void> _cancelarInscripcion(
+    BuildContext context,
+    DocumentSnapshot inscripcion,
+    String nombreDeporte,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final m = inscripcion.data() as Map<String, dynamic>;
+    final pagado = m['pagado'] == true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar inscripción'),
+        content: Text(
+          '¿Seguro que quieres cancelar tu inscripción en $nombreDeporte? '
+          'Se liberará tu cupo.'
+          '${pagado ? '\n\nEl pago realizado no se reembolsa automáticamente; '
+              'comunícate con el administrador si necesitas un reembolso.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: orangePrimary),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final deporteId = m['deporteId']?.toString();
+      await db.runTransaction((transaction) async {
+        DocumentSnapshot? deporte;
+        if (deporteId != null && deporteId.isNotEmpty) {
+          deporte =
+              await transaction.get(db.collection('deportes').doc(deporteId));
+        }
+        transaction.update(inscripcion.reference, {'estado': 'Cancelada'});
+        if (deporte != null && deporte.exists) {
+          final data = deporte.data() as Map<String, dynamic>?;
+          final inscritos = data?['cuposInscritos'];
+          final actuales = inscritos is num
+              ? inscritos.toInt()
+              : int.tryParse('$inscritos') ?? 0;
+          if (actuales > 0) {
+            transaction.update(deporte.reference, {
+              'cuposInscritos': FieldValue.increment(-1),
+            });
+          }
+        }
+      });
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Inscripción cancelada y cupo liberado.'),
+        backgroundColor: Colors.green,
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('No se pudo cancelar la inscripción: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   Future<void> _pagarEInscribir({
