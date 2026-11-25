@@ -1117,7 +1117,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               label: const Text('¿Necesitas ayuda? Soporte'),
             ),
             const Text(
-              '© 2026 Samán Deportivo • UNIMET',
+              '© 2026 VirtuMet • UNIMET',
               style: TextStyle(fontSize: 12, color: textGrey),
             ),
           ],

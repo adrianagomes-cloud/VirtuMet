@@ -1341,7 +1341,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       padding: const EdgeInsets.symmetric(vertical: 24),
       alignment: Alignment.center,
       child: const Text(
-        '© 2026 Samán Deportivo · Universidad Metropolitana',
+        '© 2026 VirtuMet · Universidad Metropolitana',
         style: TextStyle(fontSize: 12, color: Colors.grey),
       ),
     );

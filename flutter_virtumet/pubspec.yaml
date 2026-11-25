@@ -30,5 +30,5 @@ flutter:
 
   assets:
     - lib/assets/Logo.png
-    - lib/assets/logo2.png
+    - lib/assets/Logo2.png
     - lib/assets/musica_relajante.mp3
