@@ -27,6 +27,26 @@ class _AdminEventsViewState extends State<AdminEventsView> {
     return '$year-$month-$day';
   }
 
+  int _convertirHoraAMinutos(String timeStr) {
+    if (timeStr.isEmpty) return 0;
+    try {
+      final textLower = timeStr.toLowerCase();
+      // Deja únicamente números y el símbolo ':'
+      String cleanTime = timeStr.replaceAll(RegExp(r'[^\d:]'), '');
+      final parts = cleanTime.split(':');
+      int hours = int.parse(parts[0]);
+      int minutes = int.parse(parts[1]);
+      
+      // Busca solo 'p' o 'a' para evitar problemas con puntos (ej: a. m.)
+      if (textLower.contains('p') && hours != 12) hours += 12;
+      if (textLower.contains('a') && hours == 12) hours = 0;
+      
+      return (hours * 60) + minutes;
+    } catch (e) {
+      return 0; 
+    }
+  }
+
   // ===========================================================================
   // SUBIDA Y RENDERIZADO DE IMÁGENES DESDE COMPUTADORA O URL
   // ===========================================================================
@@ -116,7 +136,21 @@ class _AdminEventsViewState extends State<AdminEventsView> {
         TextEditingController(text: existingData?['descripcion'] ?? '');
     final lugarCtrl =
         TextEditingController(text: existingData?['lugar'] ?? '');
-    final horaCtrl = TextEditingController(text: existingData?['hora'] ?? '');
+
+    // Separación de hora en Inicio y Fin
+    final String existingHora = (existingData?['hora'] ?? '').toString();
+    String initHoraInicio = '';
+    String initHoraFin = '';
+    if (existingHora.contains(' - ')) {
+      final parts = existingHora.split(' - ');
+      initHoraInicio = parts[0].trim();
+      initHoraFin = parts[1].trim();
+    } else {
+      initHoraInicio = existingHora.trim();
+    }
+
+    final horaInicioCtrl = TextEditingController(text: initHoraInicio);
+    final horaFinCtrl = TextEditingController(text: initHoraFin);
 
     final String existingImageUrl = (existingData?['imageUrl'] ??
             existingData?['imagen'] ??
@@ -498,6 +532,58 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                           ),
                         const SizedBox(height: 16),
 
+                        // SECCIÓN DE FECHA
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Fecha del Evento *',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: AdminEventsView.blueDark,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: eventDate,
+                                  firstDate: DateTime(2024),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (picked != null) {
+                                  setModalState(() => eventDate = picked);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8F9FA),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(fechaTexto,
+                                        style: const TextStyle(fontSize: 13)),
+                                    const Icon(Icons.calendar_month_outlined,
+                                        size: 18,
+                                        color: AdminEventsView.blueDark),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // SECCIÓN DE HORAS (Inicio y Fin)
                         FilaAdaptable(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -506,60 +592,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Fecha del Evento *',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: AdminEventsView.blueDark,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  InkWell(
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate: eventDate,
-                                        firstDate: DateTime(2024),
-                                        lastDate: DateTime(2030),
-                                      );
-                                      if (picked != null) {
-                                        setModalState(() => eventDate = picked);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF8F9FA),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: const Color(0xFFCBD5E1)),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(fechaTexto,
-                                              style: const TextStyle(
-                                                  fontSize: 13)),
-                                          const Icon(
-                                              Icons.calendar_month_outlined,
-                                              size: 18,
-                                              color: AdminEventsView.blueDark),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Hora del Evento *',
+                                    'Hora de Inicio *',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
@@ -568,22 +601,22 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                   ),
                                   const SizedBox(height: 6),
                                   TextFormField(
-                                    controller: horaCtrl,
+                                    controller: horaInicioCtrl,
                                     readOnly: true,
                                     onTap: () async {
                                       final pickedTime = await showTimePicker(
                                         context: context,
                                         initialTime:
-                                            const TimeOfDay(hour: 10, minute: 0),
+                                            const TimeOfDay(hour: 8, minute: 0),
                                       );
                                       if (pickedTime != null) {
-                                        horaCtrl.text =
+                                        horaInicioCtrl.text =
                                             pickedTime.format(context);
                                       }
                                     },
                                     style: const TextStyle(fontSize: 13),
                                     decoration: InputDecoration(
-                                      hintText: '10:00 AM',
+                                      hintText: '08:00 AM',
                                       filled: true,
                                       fillColor: const Color(0xFFF8F9FA),
                                       suffixIcon: const Icon(Icons.access_time,
@@ -600,7 +633,61 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                     ),
                                     validator: (v) =>
                                         v == null || v.trim().isEmpty
-                                            ? 'Indica la hora'
+                                            ? 'Indica inicio'
+                                            : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Hora de Fin *',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: AdminEventsView.blueDark,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: horaFinCtrl,
+                                    readOnly: true,
+                                    onTap: () async {
+                                      final pickedTime = await showTimePicker(
+                                        context: context,
+                                        initialTime:
+                                            const TimeOfDay(hour: 10, minute: 0),
+                                      );
+                                      if (pickedTime != null) {
+                                        horaFinCtrl.text =
+                                            pickedTime.format(context);
+                                      }
+                                    },
+                                    style: const TextStyle(fontSize: 13),
+                                    decoration: InputDecoration(
+                                      hintText: '10:00 AM',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F9FA),
+                                      suffixIcon: const Icon(
+                                          Icons.access_time_filled,
+                                          size: 18,
+                                          color: AdminEventsView.blueDark),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFCBD5E1)),
+                                      ),
+                                    ),
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
+                                            ? 'Indica fin'
                                             : null,
                                   ),
                                 ],
@@ -655,6 +742,19 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                       : () async {
                           if (!formKey.currentState!.validate()) return;
 
+                          int minInicio = _convertirHoraAMinutos(horaInicioCtrl.text);
+                          int minFin = _convertirHoraAMinutos(horaFinCtrl.text);
+
+                          if (minFin <= minInicio) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('La hora de finalización debe ser posterior a la de inicio'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return; 
+                          }
+
                           setModalState(() => isSaving = true);
 
                           try {
@@ -669,6 +769,10 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                             }
 
                             final String fechaKey = _formatDateKey(eventDate);
+                            
+                            // Combinación automática de las horas
+                            final String horaCombinada = 
+                                '${horaInicioCtrl.text.trim()} - ${horaFinCtrl.text.trim()}';
 
                             if (isEditing) {
                               await FirebaseFirestore.instance
@@ -679,7 +783,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                 'deporte': selectedSport,
                                 'descripcion': descripcionCtrl.text.trim(),
                                 'lugar': lugarCtrl.text.trim(),
-                                'hora': horaCtrl.text.trim(),
+                                'hora': horaCombinada,
                                 'imageUrl': finalImageUrl,
                                 'fechaKey': fechaKey,
                                 'fechaTimestamp': Timestamp.fromDate(eventDate),
@@ -692,7 +796,7 @@ class _AdminEventsViewState extends State<AdminEventsView> {
                                 'deporte': selectedSport,
                                 'descripcion': descripcionCtrl.text.trim(),
                                 'lugar': lugarCtrl.text.trim(),
-                                'hora': horaCtrl.text.trim(),
+                                'hora': horaCombinada,
                                 'imageUrl': finalImageUrl,
                                 'fechaKey': fechaKey,
                                 'fechaTimestamp': Timestamp.fromDate(eventDate),

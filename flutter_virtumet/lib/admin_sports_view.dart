@@ -980,6 +980,60 @@ class _AdminSportsViewState extends State<AdminSportsView> {
                           setDialogState(() => isSaving = true);
 
                           try {
+                            // ==========================================
+                            // 1. VALIDACIÓN DE CÓDIGO ÚNICO
+                            // ==========================================
+                            final codigoIngresado = codigoCtrl.text.trim().toUpperCase();
+
+                            if (codigoIngresado.isEmpty) {
+                              setDialogState(() => isSaving = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('El código único es obligatorio.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+
+                            final queryCodigo = await FirebaseFirestore.instance
+                                .collection('deportes')
+                                .where('codigo', isEqualTo: codigoIngresado)
+                                .get();
+
+                            bool existeDuplicado = false;
+                            
+                            if (queryCodigo.docs.isNotEmpty) {
+                              if (isEditing) {
+                                // Verificamos si algún documento con ese código tiene un ID distinto al actual
+                                for (var d in queryCodigo.docs) {
+                                  if (d.id != doc?.id) {
+                                    existeDuplicado = true;
+                                    break;
+                                  }
+                                }
+                              } else {
+                                // Si estamos creando uno nuevo y ya hay resultados, es duplicado
+                                existeDuplicado = true;
+                              }
+                            }
+
+                            if (existeDuplicado) {
+                              setDialogState(() => isSaving = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Error: Este código ya está registrado en otra disciplina.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                              return; // Detiene el proceso de guardado
+                            }
+                            // ==========================================
+
                             // SUBIR O DETERMINAR IMAGEN FINAL
                             String finalImageUrl;
                             if (!useUrlMode && pickedBytes != null) {
